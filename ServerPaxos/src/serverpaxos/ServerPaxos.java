@@ -75,6 +75,9 @@ public class ServerPaxos {
             try {
                 BufferedReader inFromClient = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 String request;
+                while ((request = inFromClient.readLine()) != null) {
+                    System.out.println(request);
+                }
             } catch (SocketException ex) {
             } catch (IOException ex) {
                 Logger.getLogger(ServerPaxos.class.getName()).log(Level.SEVERE, null, ex);

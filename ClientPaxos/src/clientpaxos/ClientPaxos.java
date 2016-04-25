@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import static java.lang.Thread.sleep;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Scanner;
@@ -30,7 +31,7 @@ public class ClientPaxos {
     /**
      * @param args the command line arguments
      */
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException, Exception {
         // TODO code application logic here
         Scanner scan = new Scanner(System.in);
 
@@ -40,7 +41,11 @@ public class ClientPaxos {
         Thread t = new Thread(new StringGetter());
         t.start();
         while (true) {
-
+            sleep(100);
+            System.out.print("COMMAND : ");
+            //send msg to server
+            String msg = scan.nextLine();
+            sendToServer(msg);
         }
     }
     
@@ -53,12 +58,7 @@ public class ClientPaxos {
                 String response;
                 while (true) {
                     response = inFromServer.readLine();
-                    if (response.length()>12) {
-                        if (!response.substring(0,12).equals("update-board"))
-                            System.out.println(response);
-                    }
-     
-
+                    System.out.println(response);
                 }
             } catch (IOException ex) {
                 Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
