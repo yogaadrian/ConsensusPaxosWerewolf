@@ -11,6 +11,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import static java.lang.Thread.sleep;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Scanner;
@@ -33,6 +36,33 @@ public class ClientPaxos {
      */
     public static void main(String[] args) throws IOException, InterruptedException, Exception {
         // TODO code application logic here
+        //cobain udp
+        /*
+        Scanner reader = new Scanner(System.in);
+        System.out.println("Enter menu: ");
+        int menu = reader.nextInt();
+        reader.nextLine();
+        String menuString;
+        switch(menu) {
+            case 1: menuString = "Send";
+            break;
+            case 2: menuString = "Receive";
+            break;
+            default : menuString = "Invalid";
+        }
+        System.out.println(menuString);
+        if (menu == 1) {
+            System.out.println("Enter IP: ");
+            String IP = reader.nextLine();
+            System.out.println("Enter target port: ");
+            int targetPort = reader.nextInt();
+            sendMessage(IP, targetPort);
+        } else if(menu == 2) {
+            System.out.println("Enter listen port: ");
+            int listenPort = reader.nextInt();
+            receiveMessage(listenPort);
+        }*/
+        
         Scanner scan = new Scanner(System.in);
 
         System.out.print("Input server IP hostname : ");
@@ -72,6 +102,40 @@ public class ClientPaxos {
         //send msg to server
         outToServer.print(msg + '\n');
         outToServer.flush();
+    }
+    
+    public static void sendMessage(String IP, int targetPort) throws Exception {
+        BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
+
+        InetAddress IPAddress = InetAddress.getByName(IP);
+
+	DatagramSocket datagramSocket = new DatagramSocket();
+	UnreliableSender unreliableSender = new UnreliableSender(datagramSocket);
+	
+        while (true) {
+            String sentence = inFromUser.readLine();
+            if (sentence.equals("quit")) {
+                break;
+            }
+
+            byte[] sendData = sentence.getBytes();
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, targetPort);
+            unreliableSender.send(sendPacket);
+        }
+        datagramSocket.close();
+    }
+    
+    public static void receiveMessage(int listenPort) throws Exception {
+	DatagramSocket serverSocket = new DatagramSocket(listenPort);
+
+	byte[] receiveData = new byte[1024];
+	while(true) {
+            DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+            serverSocket.receive(receivePacket);
+
+            String sentence = new String(receivePacket.getData(), 0, receivePacket.getLength());
+            System.out.println("RECEIVED: " + sentence);
+        }
     }
     
 }
