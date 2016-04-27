@@ -16,12 +16,15 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import player.Player;
 
 /**
  *
@@ -32,7 +35,10 @@ public class ClientPaxos {
     static public Socket clientSocket;
     static public BufferedReader objectFromServer;
     static public PrintWriter objectToServer;
-    static public Scanner scan=new Scanner(System.in);
+    static public Scanner scan = new Scanner(System.in);
+    static public int player_id = -1;
+    static public boolean is_join = false;
+    static public ArrayList<Player> listPlayer = new ArrayList();
 
     /**
      * @param args the command line arguments
@@ -82,14 +88,14 @@ public class ClientPaxos {
             System.out.print("COMMAND : ");
             //send msg to server
             String msg = scan.nextLine();
-            Parse(msg);
+            ParseCommand(msg);
         }
     }
 
-    public static void Parse(String msg) throws Exception {
+    //parser command ke server
+    public static void ParseCommand(String msg) throws Exception {
         if (msg.equals("join")) {
-            String json ;
-            //build jsonObject
+            String json;
             JSONObject jsonObject = new JSONObject();
             System.out.print("Masukkan nama : ");
             String username = scan.nextLine();
@@ -97,14 +103,35 @@ public class ClientPaxos {
             jsonObject.put("username", username);
             jsonObject.put("udp_address", InetAddress.getLocalHost().getHostAddress());
             System.out.print("Masukkan port : ");
-            int port=scan.nextInt();
+            int port = scan.nextInt();
             scan.nextLine();
             jsonObject.put("udp_port", port);
-            //convert JSONObject to JSON to String
+            json = jsonObject.toString();
+            System.out.println(json);
+            sendToServer(json);
+        } else if (msg.equals("leave")) {
+            String json;
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("method", "leave");
+            json = jsonObject.toString();
+            System.out.println(json);
+            sendToServer(json);
+        } else if (msg.equals("ready")) {
+            String json;
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("method", "ready");
+            json = jsonObject.toString();
+            System.out.println(json);
+            sendToServer(json);
+        } else if (msg.equals("client address")) {
+            String json;
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("method", "client_address");
             json = jsonObject.toString();
             System.out.println(json);
             sendToServer(json);
         }
+
     }
 
     public static class StringGetter
@@ -125,21 +152,43 @@ public class ClientPaxos {
                 Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
-        
-        
-        public void Parse(String str) throws ParseException{
+
+        public void Parse(String str) throws ParseException {
             JSONParser parser = new JSONParser();
             JSONObject json = (JSONObject) parser.parse(str);
             String status = (String) json.get("status");
             if (status.equals("fail")) {
+                System.out.println("FAIL");
                 String description = (String) json.get("description");
-                System.out.println(description);
-            } else if (status.equals("error")){
+                System.out.println("description " + description);
+            } else if (status.equals("error")) {
+                System.out.println("ERROR");
                 String description = (String) json.get("description");
-                System.out.println(description);
-            } else if(status.equals("ok")){
-                //isi disini
-                System.out.println(str);
+                System.out.println("description " + description);
+            } else if (status.equals("ok")) {
+                System.out.println("OK");
+                //JIKA ADA JASON DENGAN KUNCI TERSEBUT
+                if (json.get("player_id") != null) {
+                    player_id = Integer.parseInt(json.get("player_id").toString());
+                    System.out.println("ID player :" + player_id);
+                }
+                if (json.get("description") != null) {
+                    System.out.println("description : " + json.get("description").toString());
+                }
+                if (json.get("clients") != null) {
+                    listPlayer.clear();
+                    System.out.println("clients");
+                    JSONArray jsonarray = (JSONArray) json.get("clients");
+                    for(int i=0; i<jsonarray.size();i++){
+                        JSONObject temp= (JSONObject)jsonarray.get(i);
+                        System.out.println(temp.toJSONString());
+                        listPlayer.add(new Player(Integer.parseInt(temp.get("player_id").toString()), Integer.parseInt(temp.get("is_alive").toString()), (String) temp.get("address"), Integer.parseInt(temp.get("port").toString()), temp.get("username").toString()));
+                        if (listPlayer.get(i).is_alive==0){
+                            listPlayer.get(i).setRole(temp.get("role").toString());
+                        }
+                    }
+                }
+
             }
         }
     }
