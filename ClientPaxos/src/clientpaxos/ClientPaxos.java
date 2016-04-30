@@ -26,6 +26,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import player.Player;
+import vote.Vote;
 
 /**
  *
@@ -38,44 +39,18 @@ public class ClientPaxos {
     static public PrintWriter objectToServer;
     static public Scanner scan = new Scanner(System.in);
     static public int player_id = -1;
+    static public int totalVote = 0;
     static public boolean is_join = false;
     static public ArrayList<Player> listPlayer = new ArrayList();
     static public int port;
     static public int sequence = 0;
     static public String paxos_role;
-    static public Thread udpthread;
 
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) throws IOException, InterruptedException, Exception {
         // TODO code application logic here
-        //cobain udp
-        /*
-         Scanner reader = new Scanner(System.in);
-         System.out.println("Enter menu: ");
-         int menu = reader.nextInt();
-         reader.nextLine();
-         String menuString;
-         switch(menu) {
-         case 1: menuString = "Send";
-         break;
-         case 2: menuString = "Receive";
-         break;
-         default : menuString = "Invalid";
-         }
-         System.out.println(menuString);
-         if (menu == 1) {
-         System.out.println("Enter IP: ");
-         String IP = reader.nextLine();
-         System.out.println("Enter target port: ");
-         int targetPort = reader.nextInt();
-         sendMessage(IP, targetPort);
-         } else if(menu == 2) {
-         System.out.println("Enter listen port: ");
-         int listenPort = reader.nextInt();
-         receiveMessage(listenPort);
-         }*/
 
         Scanner scan = new Scanner(System.in);
 
@@ -164,46 +139,100 @@ public class ClientPaxos {
         public void Parse(String str) throws ParseException, Exception {
             JSONParser parser = new JSONParser();
             JSONObject json = (JSONObject) parser.parse(str);
-            String status = (String) json.get("status");
-            if (status.equals("fail")) {
-                System.out.println("FAIL");
-                String description = (String) json.get("description");
-                System.out.println("description " + description);
-            } else if (status.equals("error")) {
-                System.out.println("ERROR");
-                String description = (String) json.get("description");
-                System.out.println("description " + description);
-            } else if (status.equals("ok")) {
-                System.out.println("OK");
-                //JIKA ADA JSON DENGAN KUNCI TERSEBUT
-                if (json.get("player_id") != null) {
-                    player_id = Integer.parseInt(json.get("player_id").toString());
-                    System.out.println("ID player :" + player_id);
-                    udpthread = new Thread(new UDPThread());
-                    udpthread.start();
-                }
-                if (json.get("description") != null) {
-                    System.out.println("description : " + json.get("description").toString());
-                }
-                if (json.get("clients") != null) {
-                    listPlayer.clear();
-                    System.out.println("clients");
-                    JSONArray jsonarray = (JSONArray) json.get("clients");
-                    for(int i=0; i<jsonarray.size();i++){
-                        JSONObject temp= (JSONObject)jsonarray.get(i);
-                        System.out.println(temp.toJSONString());
-                        listPlayer.add(new Player(Integer.parseInt(temp.get("player_id").toString()), Integer.parseInt(temp.get("is_alive").toString()), (String) temp.get("address"), Integer.parseInt(temp.get("port").toString()), temp.get("username").toString()));
-                        if (listPlayer.get(i).is_alive==0){
-                            listPlayer.get(i).setRole(temp.get("role").toString());
+            if (json.get("status")!= null) {
+                String status = (String) json.get("status");
+                if (status.equals("fail")) {
+                    System.out.println("FAIL");
+                    String description = (String) json.get("description");
+                    System.out.println("description " + description);
+                } else if (status.equals("error")) {
+                    System.out.println("ERROR");
+                    String description = (String) json.get("description");
+                    System.out.println("description " + description);
+                } else if (status.equals("ok")) {
+                    System.out.println("OK");
+                    //JIKA ADA JSON DENGAN KUNCI TERSEBUT
+                    if (json.get("player_id") != null) {
+                        player_id = Integer.parseInt(json.get("player_id").toString());
+                        System.out.println("ID player :" + player_id);
+                        Thread t = new Thread(new UDPThread());
+                        t.start();
+                    }
+                    if (json.get("description") != null) {
+                        System.out.println("description : " + json.get("description").toString());
+                    }
+                    if (json.get("clients") != null) {
+                        listPlayer.clear();
+                        System.out.println("clients");
+                        JSONArray jsonarray = (JSONArray) json.get("clients");
+                        for(int i=0; i<jsonarray.size();i++){
+                            JSONObject temp= (JSONObject)jsonarray.get(i);
+                            System.out.println(temp.toJSONString());
+                            listPlayer.add(new Player(Integer.parseInt(temp.get("player_id").toString()), Integer.parseInt(temp.get("is_alive").toString()), (String) temp.get("address"), Integer.parseInt(temp.get("port").toString()), temp.get("username").toString()));
+                            if (listPlayer.get(i).is_alive==0){
+                                listPlayer.get(i).setRole(temp.get("role").toString());
+                            }
+                        }
+                        if ((player_id != listPlayer.size()-1) && (player_id != listPlayer.size()-2)) {
+                            paxos_role = "acceptor";
+                        } else {
+                            paxos_role = "proposer";
                         }
                     }
-                    if ((player_id != listPlayer.size()-1) && (player_id != listPlayer.size()-2)) {
-                        paxos_role = "acceptor";
-                    } else {
-                        paxos_role = "proposer";
+                }
+            }
+            //get method
+            if (json.get("method") != null) {
+                String method = (String) json.get("method");
+                if (method.equals("vote_now")){
+                    String phase = (String)json.get("phase");
+                    if(phase.equals("day")) {
+                        // Kondisi siang
+                        String jsonVote;
+                        JSONObject jsonObject = new JSONObject();
+
+                        Scanner reader = new Scanner(System.in);
+                        System.out.print("vote player yang akan dibunuh : ");
+                        int player_id = reader.nextInt();
+                        System.out.println("player_id : " + player_id);
+                        //method yang akan dikirimkan
+                        jsonObject.put("method", "vote_civilian");
+                        jsonObject.put("player_id", player_id);
+                        String jsonOut = jsonObject.toString();
+                        System.out.println("kirim : " + jsonOut);
+                        
+                        for (int i = 0; i < listPlayer.size(); i++) {
+                            if (listPlayer.get(i).getPlayerId() == player_id) {
+                                UDPThread.sendMessage(listPlayer.get(i).getAddress(), listPlayer.get(i).getPort(), jsonOut);
+                            }
+                        }
+
+                        //Kirim ke KPU
+                        //receiveMessage(port);
+
+                    } else if (phase.equals("night")) {
+                        // Kondisi malam
+                        String jsonVote;
+                        JSONObject jsonObject = new JSONObject();
+
+                        Scanner reader = new Scanner(System.in);
+                        System.out.println("vote player yang akan dibunuh : ");
+                        int player_id = reader.nextInt();
+                        //method yang akan dikirimkan
+                        jsonObject.put("method", "vote_werewolf");
+                        jsonObject.put("player_id", player_id);
+                        String jsonOut = jsonObject.toString();
+                        System.out.println("kirim : " + jsonOut);
+                        
+                        for (int i = 0; i < listPlayer.size(); i++) {
+                            if (listPlayer.get(i).getPlayerId() == player_id) {
+                                UDPThread.sendMessage(listPlayer.get(i).getAddress(), listPlayer.get(i).getPort(), jsonOut);
+                            }
+                        }
+                        //Kirim vote ke KPU
+                        //receiveMessage(port);
                     }
                 }
-
             }
         }
     }
@@ -259,8 +288,6 @@ public class ClientPaxos {
                 System.out.println(json);
                 for (int i = 0; i < listPlayer.size(); i++) {
                     if ((listPlayer.get(i).getPlayerId() != listPlayer.size()-1) && (listPlayer.get(i).getPlayerId() != listPlayer.size()-2)) {
-                        System.out.println(listPlayer.get(i).getAddress());
-                        System.out.println(listPlayer.get(i).getPort());
                         sendMessage(listPlayer.get(i).getAddress(), listPlayer.get(i).getPort(), json);
                     }
                 }
@@ -292,63 +319,127 @@ public class ClientPaxos {
         }
 
         public void Parse(String str) throws ParseException, IOException {
-            if (paxos_role.equals("acceptor")) {
-                JSONParser parser = new JSONParser();
-                JSONObject json = (JSONObject) parser.parse(str);
-                String method = (String) json.get("method");
-                if (method.equals("prepare_proposal")) {
-                    try {
-                        JSONArray jsonarray = (JSONArray) json.get("proposal_id");
-                        long curid[] = new long[2];
-                        curid[0] = (long)jsonarray.get(0);
-                        curid[1] = (long)jsonarray.get(1);
-                        boolean valid = false;
-                        if (curid[0] > maxid[0]) {
+            JSONParser parser = new JSONParser();
+            JSONObject json = (JSONObject) parser.parse(str);
+            String method = (String) json.get("method");
+            if (method.equals("prepare_proposal")) {
+                try {
+                    JSONArray jsonarray = (JSONArray) json.get("proposal_id");
+                    long curid[] = new long[2];
+                    curid[0] = (long)jsonarray.get(0);
+                    curid[1] = (long)jsonarray.get(1);
+                    boolean valid = false;
+                    if (curid[0] > maxid[0]) {
+                        valid = true;
+                    } else if (curid[0] == maxid[0]) {
+                        if (curid[1] > maxid[1]) {
                             valid = true;
-                        } else if (curid[0] == maxid[0]) {
-                            if (curid[1] > maxid[1]) {
-                                valid = true;
-                            }
                         }
-                        JSONObject jsonObject = new JSONObject();
-                        if (valid) {
-                            jsonObject.put("status", "ok");
-                            jsonObject.put("description", "accepted");
-                            if (acc_kpu_id != -1) {
-                                jsonObject.put("previous_accepted", acc_kpu_id);
-                            }
-                        } else {
-                            jsonObject.put("status", "fail");
-                            jsonObject.put("description", "rejected");
-                        }
-                        // convert JSONObject to JSON to String
-                        String response = jsonObject.toString();
-                        System.out.println("kirim : " + response);
-                        byte[] sendData = response.getBytes();
-                        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
-                        unreliableSender.send(sendPacket);
-
-                        if (valid) {
-                            maxid[0] = curid[0];
-                            maxid[1] = curid[1];
-                        }
-                    } catch (IOException ex) {
-                        Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
                     }
-                } else {
-                   String response;
-                    //build jsonObject
                     JSONObject jsonObject = new JSONObject();
-                    jsonObject.put("status", "error");
-                    jsonObject.put("description", "wrong request");
-
-                    //convert JSONObject to JSON to String
-                    response = jsonObject.toString();
+                    if (valid) {
+                        jsonObject.put("status", "ok");
+                        jsonObject.put("description", "accepted");
+                        if (acc_kpu_id != -1) {
+                            jsonObject.put("previous_accepted", acc_kpu_id);
+                        }
+                    } else {
+                        jsonObject.put("status", "fail");
+                        jsonObject.put("description", "rejected");
+                    }
+                    // convert JSONObject to JSON to String
+                    String response = jsonObject.toString();
                     System.out.println("kirim : " + response);
                     byte[] sendData = response.getBytes();
                     DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
                     unreliableSender.send(sendPacket);
+
+                    if (valid) {
+                        maxid[0] = curid[0];
+                        maxid[1] = curid[1];
+                    }
+                } catch (IOException ex) {
+                    Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
                 }
+            } else if(method.equals("vote_werewolf")) {
+                String jsonVote;
+                JSONObject jsonObject = new JSONObject();
+                int player_id = Integer.parseInt(json.get("player_id").toString());
+                int totalPlayerId = listPlayer.size()-1;
+                if(player_id <= totalPlayerId ) {
+                    jsonObject.put("status", "ok");
+                    jsonObject.put("description", "vote werewolf accepted");
+
+                    totalVote++;
+                    ArrayList<Vote> listVote = new ArrayList();
+                    //inisialisasi list vote
+                    for(int i = 0; i < listPlayer.size(); i++) {
+                        int id = listPlayer.get(i).getPlayerId();
+                        listVote.add(new Vote(id, 0));
+                    }
+                    //Masukkan vote ke dalam array list
+                    for(int i = 0; i < listVote.size(); i++) {
+                        if(listVote.get(i).getPlayerId() == player_id) {
+                            int currentVote = listVote.get(i).getCountVote();
+                            listVote.get(i).setCountVote(currentVote++);
+                        } 
+                    }
+                    // convert JSONObject to JSON to String
+                    String response = jsonObject.toString();
+                    System.out.println("kirim : " + response);
+                    byte[] sendData = response.getBytes();
+                    DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
+                    clientSocket.send(sendPacket);
+                } else {
+                    jsonObject.put("status", "fail");
+                    jsonObject.put("description", "vote werewolf rejected");
+                }
+            } else if(method.equals("vote_civilian")) {
+                String jsonVote;
+                JSONObject jsonObject = new JSONObject();
+
+                jsonObject.put("status", "ok");
+                jsonObject.put("description", "vote civilian accepted");
+                int player_id = Integer.parseInt(json.get("player_id").toString());
+                int totalPlayerId = listPlayer.size()-1;
+                // masukan vote ke dalam array list
+                if(player_id <= totalPlayerId ) {
+                    totalVote++;
+                    ArrayList<Vote> listVote = new ArrayList();
+                    //insialisasi list vote
+                    for(int i = 0; i < listPlayer.size(); i++) {
+                        int id = listPlayer.get(i).getPlayerId();
+                        listVote.add(new Vote(id, 0));
+                    }
+                    for(int i = 0; i < listVote.size(); i++) {
+                        if(listVote.get(i).getPlayerId() == player_id) {
+                            int currentVote = listVote.get(i).getCountVote();
+                            listVote.get(i).setCountVote(currentVote++);
+                        } 
+                    }
+                    // convert JSONObject to JSON to String
+                    String response = jsonObject.toString();
+                    System.out.println("kirim : " + response);
+                    byte[] sendData = response.getBytes();
+                    DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
+                    clientSocket.send(sendPacket);
+                } else {
+                    jsonObject.put("status", "fail");
+                    jsonObject.put("description", "vote civilian rejected");
+                }
+            } else {
+                String response;
+                //build jsonObject
+                JSONObject jsonObject = new JSONObject();
+                jsonObject.put("status", "error");
+                jsonObject.put("description", "wrong request");
+
+                //convert JSONObject to JSON to String
+                response = jsonObject.toString();
+                System.out.println("kirim : " + response);
+                byte[] sendData = response.getBytes();
+                DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
+                clientSocket.send(sendPacket);
             }             
         }
     }
