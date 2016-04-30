@@ -38,6 +38,7 @@ public class ClientPaxos {
     static public PrintWriter objectToServer;
     static public Scanner scan = new Scanner(System.in);
     static public int player_id = -1;
+    static public int totalVote = 0;
     static public boolean is_join = false;
     static public ArrayList<Player> listPlayer = new ArrayList();
     static public int port;
