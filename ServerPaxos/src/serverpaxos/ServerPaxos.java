@@ -62,14 +62,8 @@ public class ServerPaxos {
             Thread t = new Thread(clientcontroller);
             t.start();
             
-            sleep(100);
-            System.out.print("COMMAND : ");
-            //send msg to client
-            Scanner scan = new Scanner(System.in);
-            String cmd = scan.nextLine();
-            if(!cmd.isEmpty()) {
-                ParseCommand(cmd, socket);
-            }
+            Thread t2 = new Thread(new StringGetter(socket));
+            t2.start();
         }
 
         // TODO code application logic here
@@ -282,6 +276,35 @@ public class ServerPaxos {
             //send msg to client
             outToClient.print(response + '\n');
             outToClient.flush();
+        }
+    }
+    
+    public static class StringGetter extends Thread {
+        String cmd;
+        Socket socket;
+
+        public StringGetter(Socket clientSocket) {
+            this.socket = clientSocket;
+        }
+        
+        public void run() {
+            try {
+                while (true) {
+                    sleep(100);
+                    System.out.print("COMMAND : ");
+                    //send msg to client
+                    Scanner scan = new Scanner(System.in);
+                    String cmd = scan.nextLine();
+                    if(!cmd.isEmpty()) {
+                        ParseCommand(cmd, socket);
+                    }
+                }
+                
+            } catch (InterruptedException ex) {
+                Logger.getLogger(ServerPaxos.class.getName()).log(Level.SEVERE, null, ex);
+            } catch (Exception ex) {
+                Logger.getLogger(ServerPaxos.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
     }
 
