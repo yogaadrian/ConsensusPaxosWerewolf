@@ -25,6 +25,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import player.Player;
+import vote.Vote;
 
 /**
  *
@@ -47,32 +48,6 @@ public class ClientPaxos {
      */
     public static void main(String[] args) throws IOException, InterruptedException, Exception {
         // TODO code application logic here
-        //cobain udp
-        /*
-         Scanner reader = new Scanner(System.in);
-         System.out.println("Enter menu: ");
-         int menu = reader.nextInt();
-         reader.nextLine();
-         String menuString;
-         switch(menu) {
-         case 1: menuString = "Send";
-         break;
-         case 2: menuString = "Receive";
-         break;
-         default : menuString = "Invalid";
-         }
-         System.out.println(menuString);
-         if (menu == 1) {
-         System.out.println("Enter IP: ");
-         String IP = reader.nextLine();
-         System.out.println("Enter target port: ");
-         int targetPort = reader.nextInt();
-         sendMessage(IP, targetPort);
-         } else if(menu == 2) {
-         System.out.println("Enter listen port: ");
-         int listenPort = reader.nextInt();
-         receiveMessage(listenPort);
-         }*/
 
         Scanner scan = new Scanner(System.in);
 
@@ -201,6 +176,40 @@ public class ClientPaxos {
                     }
                 }
 
+            }
+            //get method
+            String method = (String) json.get("method");
+            if (method.equals("vote_now")){
+                String phase = (String)json.get("pahse");
+                if(phase.equals("day")) {
+                    // Kondisi siang
+                    String jsonVote;
+                    JSONObject jsonObject = new JSONObject();
+
+                    Scanner reader = new Scanner(System.in);
+                    System.out.print("vote player yang akan dibunuh : ");
+                    int player_id = reader.nextInt();
+                    //method yang akan dikirimkan
+                    jsonObject.put("method", "vote_civilian");
+                    jsonObject.put("player_id", player_id);
+
+                    //Kirim ke KPU
+                    //receiveMessage(port);
+
+                } else if (phase.equals("night")) {
+                    // Kondisi malam
+                    String jsonVote;
+                    JSONObject jsonObject = new JSONObject();
+
+                    Scanner reader = new Scanner(System.in);
+                    System.out.println("vote player yang akan dibunuh : ");
+                    int player_id = reader.nextInt();
+                    //method yang akan dikirimkan
+                    jsonObject.put("method", "vote_werewolf");
+                    jsonObject.put("player_id", player_id);
+                    //Kirim vote ke KPU
+                    //receiveMessage(port);
+                }
             }
         }
     }
@@ -349,7 +358,86 @@ public class ClientPaxos {
                         }
                     }
                 }
-
+            } else if(method.equals("vote_werewolf")) {
+                String jsonVote;
+                JSONObject jsonObject = new JSONObject();
+                int player_id = Integer.parseInt(json.get("player_id").toString());
+                int totalPlayerId = listPlayer.size()-1;
+                if(player_id <= totalPlayerId ) {
+                    jsonObject.put("status", "ok");
+                    jsonObject.put("description", "vote werewolf accepted");
+                    
+                    totalVote++;
+                    ArrayList<Vote> listVote = new ArrayList();
+                    //insialisasi list vote
+                    for(int i = 0; i < listPlayer.size(); i++) {
+                        int id = listPlayer.get(i).getPlayerId();
+                        listVote.add(new Vote(id, 0));
+                    }
+                    //Masukan vote ke dalam array list
+                    if(listVote.size() == 0) {
+                        listVote.add(new Vote(player_id, 1));
+                    } else {
+                        for(int i = 0; i < listVote.size(); i++) {
+                            if(listVote.get(i).getPlayerId() == player_id) {
+                                int currentVote = listVote.get(i).getCountVote();
+                                listVote.get(i).setCountVote(currentVote++);
+                            } else {
+                                listVote.add(new Vote(player_id, 1));
+                            }
+                        }
+                    }
+                    // convert JSONObject to JSON to String
+                    String response = jsonObject.toString();
+                    System.out.println(IPAddress + ":" + senderport);
+                    System.out.println("kirim : " + response);
+                    byte[] sendData = response.getBytes();
+                    DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
+                    unreliableSender.send(sendPacket);
+                } else {
+                    jsonObject.put("status", "fail");
+                    jsonObject.put("description", "vote werewolf rejected");
+                }
+            } else if(method.equals("vote_civilian")) {
+                String jsonVote;
+                JSONObject jsonObject = new JSONObject();
+                
+                jsonObject.put("status", "ok");
+                jsonObject.put("description", "vote civilian accepted");
+                int player_id = Integer.parseInt(json.get("player_id").toString());
+                int totalPlayerId = listPlayer.size()-1;
+                // masukan vote ke dalam array list
+                if(player_id <= totalPlayerId ) {
+                    totalVote++;
+                    ArrayList<Vote> listVote = new ArrayList();
+                    //insialisasi list vote
+                    for(int i = 0; i < listPlayer.size(); i++) {
+                        int id = listPlayer.get(i).getPlayerId();
+                        listVote.add(new Vote(id, 0));
+                    }
+                    if(listVote.size() == 0) {
+                        listVote.add(new Vote(player_id, 1));
+                    } else {
+                        for(int i = 0; i < listVote.size(); i++) {
+                            if(listVote.get(i).getPlayerId() == player_id) {
+                                int currentVote = listVote.get(i).getCountVote();
+                                listVote.get(i).setCountVote(currentVote++);
+                            } else {
+                                listVote.add(new Vote(player_id, 1));
+                            }
+                        }
+                    }
+                    // convert JSONObject to JSON to String
+                    String response = jsonObject.toString();
+                    System.out.println(IPAddress + ":" + senderport);
+                    System.out.println("kirim : " + response);
+                    byte[] sendData = response.getBytes();
+                    DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
+                    unreliableSender.send(sendPacket);
+                } else {
+                    jsonObject.put("status", "fail");
+                    jsonObject.put("description", "vote civilian rejected");
+                }
             }
         }
     }
@@ -484,5 +572,4 @@ public class ClientPaxos {
             }
         }
     }
-
 }

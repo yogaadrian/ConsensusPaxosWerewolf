@@ -59,6 +59,13 @@ public class ServerPaxos {
 
             Thread t = new Thread(clientcontroller);
             t.start();
+            sleep(100);
+            System.out.print("COMMAND : ");
+            //send msg to client
+            String cmd = scan.nextLine();
+            if(!cmd.isEmpty()) {
+                ParseCommand(cmd, socket);
+            }
         }
 
         // TODO code application logic here
@@ -248,5 +255,28 @@ public class ServerPaxos {
             }
         }
     }
-
+    //vote now
+    public static void ParseCommand(String cmd, Socket socket) throws Exception {
+        System.out.println("parse command");
+        if(cmd.equals("vote_now")) {
+            String json;
+                
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("method", "vote_now");
+            
+            Scanner scan = new Scanner(System.in);
+            System.out.print("masukan phase: ");
+            String phase = scan.nextLine();
+            jsonObject.put("phase", phase);
+            
+            //Send To Client
+            String response;
+            response = jsonObject.toString();
+            System.out.println("kirim : " +response);
+            PrintWriter outToClient = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()));
+            //send msg to client
+            outToClient.print(response + '\n');
+            outToClient.flush();
+        }
+    }
 }
