@@ -11,12 +11,14 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import static java.lang.Thread.sleep;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.json.simple.JSONArray;
@@ -41,7 +43,7 @@ public class ServerPaxos {
     /**
      * @param args the command line arguments
      */
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException, Exception {
         String ip;
         String hostname;
         try {
@@ -59,6 +61,15 @@ public class ServerPaxos {
 
             Thread t = new Thread(clientcontroller);
             t.start();
+            
+            sleep(100);
+            System.out.print("COMMAND : ");
+            //send msg to client
+            Scanner scan = new Scanner(System.in);
+            String cmd = scan.nextLine();
+            if(!cmd.isEmpty()) {
+                ParseCommand(cmd, socket);
+            }
         }
 
         // TODO code application logic here
@@ -246,6 +257,31 @@ public class ServerPaxos {
             } catch (Exception ex) {
                 Logger.getLogger(ServerPaxos.class.getName()).log(Level.SEVERE, null, ex);
             }
+        }
+    }
+    
+    //vote now
+    public static void ParseCommand(String cmd, Socket socket) throws Exception {
+        System.out.println("parse command");
+        if(cmd.equals("vote_now")) {
+            String json;
+                
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("method", "vote_now");
+            
+            Scanner scan = new Scanner(System.in);
+            System.out.print("masukan phase: ");
+            String phase = scan.nextLine();
+            jsonObject.put("phase", phase);
+            
+            //Send To Client
+            String response;
+            response = jsonObject.toString();
+            System.out.println("kirim : " +response);
+            PrintWriter outToClient = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()));
+            //send msg to client
+            outToClient.print(response + '\n');
+            outToClient.flush();
         }
     }
 
