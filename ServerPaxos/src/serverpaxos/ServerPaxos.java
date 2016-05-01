@@ -244,7 +244,6 @@ public class ServerPaxos {
                     t = new Thread(new MajorityChecker());
                     t.start();
                 }
-                System.out.println("b");
                 if (checkid(kpu_id) != -1) {
                     String response;
                     //build jsonObject
