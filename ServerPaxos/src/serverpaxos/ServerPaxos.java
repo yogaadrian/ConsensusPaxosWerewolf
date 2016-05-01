@@ -26,6 +26,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import player.Player;
+import vote.Vote;
 
 /**
  *
@@ -39,6 +40,7 @@ public class ServerPaxos {
     static public int totalReady = 0;
     static public ArrayList<Player> listPlayer = new ArrayList();
     static public boolean play = false;
+    static public ArrayList<Socket> clientSockets = new ArrayList();
 
     /**
      * @param args the command line arguments
@@ -58,6 +60,7 @@ public class ServerPaxos {
             Socket socket = server.accept();
             System.out.println("Connected");
             ClientController clientcontroller = new ClientController(socket);
+            clientSockets.add(socket);
 
             Thread t = new Thread(clientcontroller);
             t.start();
@@ -68,6 +71,16 @@ public class ServerPaxos {
 
         // TODO code application logic here
     }
+    
+    public static void sendToAllClients(String msg, ArrayList<Socket> sockets) throws IOException {
+        for (int i = 0; i < sockets.size(); i++) {
+            //create output stream attached to socket
+            PrintWriter outToClient = new PrintWriter(new OutputStreamWriter(sockets.get(i).getOutputStream()));
+            //send msg to client
+            outToClient.print(msg + '\n');
+            outToClient.flush();
+        }
+    }
 
     //identitas tiap client thread
     public static class ClientController
@@ -75,6 +88,10 @@ public class ServerPaxos {
 
         public Socket socket;
         public int player_id = -1;
+        public static ArrayList<Vote> listVoteKPU = new ArrayList();
+        public static Thread t = null;
+        public static int acc_kpu_id = -1;
+        public static boolean ismajority = false;
 
         public ClientController(Socket clientSocket) {
             this.socket = clientSocket;
@@ -84,7 +101,7 @@ public class ServerPaxos {
         void SendToClient(String msg) throws Exception {
             //create output stream attached to socket
             PrintWriter outToClient = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()));
-            //send msg to server
+            //send msg to client
             outToClient.print(msg + '\n');
             outToClient.flush();
         }
@@ -109,7 +126,7 @@ public class ServerPaxos {
             //build jsonObject
             JSONObject jsonObject = new JSONObject();
             jsonObject.put("status", "error");
-            jsonObject.put("description", "Wrong Response");
+            jsonObject.put("description", "wrong request");
 
             //convert JSONObject to JSON to String
             response = jsonObject.toString();
@@ -122,7 +139,6 @@ public class ServerPaxos {
             JSONParser parser = new JSONParser();
             JSONObject json = (JSONObject) parser.parse(msg);
             String method = (String) json.get("method");
-            System.out.println(method);
             if (method.equals("join")) {
                 String username = (String) json.get("username");
                 if (checkuser(username) && !play) {
@@ -210,6 +226,59 @@ public class ServerPaxos {
                 response = jsonObject.toString();
                 System.out.println("kirim : " + response);
                 SendToClient(response);
+            } else if (method.equals("accepted_proposal")) {
+                if (t == null) {
+                    listVoteKPU.clear();
+                    for (int i = 0; i < listPlayer.size(); i++) {
+                        listVoteKPU.add(new Vote(listPlayer.get(i).getPlayerId(), 0));
+                    }
+                }
+                int kpu_id = Integer.parseInt(json.get("kpu_id").toString());
+                for(int i = 0; i < listVoteKPU.size(); i++) {
+                    if(listVoteKPU.get(i).getPlayerId() == kpu_id) {
+                        int currentVote = listVoteKPU.get(i).getCountVote();
+                        listVoteKPU.get(i).setCountVote(currentVote + 1);
+                    }
+                }
+                if (t == null) {
+                    t = new Thread(new MajorityChecker());
+                    t.start();
+                }
+                System.out.println("b");
+                if (checkid(kpu_id) != -1) {
+                    String response;
+                    //build jsonObject
+                    JSONObject jsonObject = new JSONObject();
+                    jsonObject.put("status", "ok");
+                    jsonObject.put("description", "");
+                    //convert JSONObject to JSON to String
+                    response = jsonObject.toString();
+                    System.out.println("kirim : " + response);
+                    SendToClient(response);
+                } else {//sudah ready
+                    FailResponse("fail to achieve majority");
+                }
+                if (t != null) {
+                    t.join();
+                }
+                String response;
+                //build jsonObject
+                JSONObject jsonObject = new JSONObject();
+                if (ismajority) {
+                    jsonObject.put("method", "kpu_selected");
+                    jsonObject.put("kpu_id", acc_kpu_id);
+                    //convert JSONObject to JSON to String
+                    response = jsonObject.toString();
+                    System.out.println("kirim : " + response);
+                    sendToAllClients(response, clientSockets);
+                } else {
+                    jsonObject.put("status", "fail");
+                    jsonObject.put("description", "fail to achieve majority");
+                    //convert JSONObject to JSON to String
+                    response = jsonObject.toString();
+                    System.out.println("kirim : " + response);
+                    sendToAllClients(response, clientSockets);                    
+                }
             } else {// command tidak terdefinisi
                 WrongResponse();
             }
@@ -250,6 +319,32 @@ public class ServerPaxos {
                 Logger.getLogger(ServerPaxos.class.getName()).log(Level.SEVERE, null, ex);
             } catch (Exception ex) {
                 Logger.getLogger(ServerPaxos.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+        
+        public static class MajorityChecker extends Thread {
+            static long sendTimeMillis;
+            static int playerSize;
+        
+            MajorityChecker() {
+                sendTimeMillis = System.currentTimeMillis();
+                playerSize = listPlayer.size();
+            }
+
+            public void run() {
+                long duration = System.currentTimeMillis() - sendTimeMillis;
+                int majority = (playerSize-2) / 2;
+                while (duration < 3000) {
+                    duration = System.currentTimeMillis() - sendTimeMillis;
+                }
+                ismajority = false;
+                for (int i = 0; i < listVoteKPU.size(); i++) {
+//                    System.out.println("(" + listVoteKPU.get(i).getPlayerId() + ", " + listVoteKPU.get(i).getCountVote() + ")");
+                    if (listVoteKPU.get(i).getCountVote() > majority) {
+                        acc_kpu_id = listVoteKPU.get(i).getPlayerId();
+                        ismajority = true;
+                    }
+                }
             }
         }
     }
