@@ -48,6 +48,11 @@ public class ServerPaxos {
     static public int ncivilian;
     static public int nwerewolf;
     static public HashMap<Integer, Socket> clientSockets = new HashMap();
+    static public Thread t = null;
+    public static ArrayList<Vote> listVoteKPU = new ArrayList();
+    public static int acc_kpu_id = -1;
+    public static boolean ismajority = false;
+    public static int num_accepted_proposal = 0;
 
     /**
      * @param args the command line arguments
@@ -99,11 +104,6 @@ public class ServerPaxos {
         public int player_id = -1;
 
         public static boolean randomrole = false;
-
-        public static ArrayList<Vote> listVoteKPU = new ArrayList();
-        public static Thread t = null;
-        public static int acc_kpu_id = -1;
-        public static boolean ismajority = false;
 
         public ClientController(Socket clientSocket) {
             this.socket = clientSocket;
@@ -246,12 +246,7 @@ public class ServerPaxos {
                     System.out.println("kirim : " + response);
                     SendToClient(response);
                 } else if (method.equals("accepted_proposal")) {
-                    if (t == null) {
-                        listVoteKPU.clear();
-                        for (int i = 0; i < listPlayer.size(); i++) {
-                            listVoteKPU.add(new Vote(listPlayer.get(i).getPlayerId(), 0));
-                        }
-                    }
+                    int num_exec_local = 0;
                     int kpu_id = Integer.parseInt(json.get("kpu_id").toString());
                     for (int i = 0; i < listVoteKPU.size(); i++) {
                         if (listVoteKPU.get(i).getPlayerId() == kpu_id) {
@@ -259,9 +254,14 @@ public class ServerPaxos {
                             listVoteKPU.get(i).setCountVote(currentVote + 1);
                         }
                     }
-                    if (t == null) {
-                        t = new Thread(new MajorityChecker());
-                        t.start();
+                    if (t == null && num_accepted_proposal == 0) {
+                        num_accepted_proposal++;
+                        System.out.println("num_accepted_proposal : " + num_accepted_proposal);
+                        num_exec_local = num_accepted_proposal;
+                        if (num_accepted_proposal == 1) {
+                            t = new Thread(new MajorityChecker());
+                            t.start();
+                        }
                     }
                     if (checkid(kpu_id) != -1) {
                         String response;
@@ -276,26 +276,32 @@ public class ServerPaxos {
                     } else {
                         FailResponse("kpu_id not valid");
                     }
-                    if (t != null) {
+                    if (t != null && num_exec_local == 1) {
+                        System.out.println("KPU SELECTED");
                         t.join();
-                    }
-                    String response;
-                    //build jsonObject
-                    JSONObject jsonObject = new JSONObject();
-                    if (ismajority) {
-                        jsonObject.put("method", "kpu_selected");
-                        jsonObject.put("kpu_id", acc_kpu_id);
-                        //convert JSONObject to JSON to String
-                        response = jsonObject.toString();
-                        System.out.println("kirim : " + response);
-                        sendToAllClients(response, clientSockets);
-                    } else {
-                        jsonObject.put("status", "fail");
-                        jsonObject.put("description", "fail to achieve majority");
-                        //convert JSONObject to JSON to String
-                        response = jsonObject.toString();
-                        System.out.println("kirim : " + response);
-                        sendToAllClients(response, clientSockets);
+                        String response;
+                        //build jsonObject
+                        JSONObject jsonObject = new JSONObject();
+                        if (ismajority) {
+                            jsonObject.put("method", "kpu_selected");
+                            jsonObject.put("kpu_id", acc_kpu_id);
+                            //convert JSONObject to JSON to String
+                            response = jsonObject.toString();
+                            System.out.println("kirim : " + response);
+                            sendToAllClients(response, clientSockets);
+                        } else {
+                            jsonObject.put("status", "fail");
+                            jsonObject.put("description", "fail to achieve majority");
+                            //convert JSONObject to JSON to String
+                            response = jsonObject.toString();
+                            System.out.println("kirim : " + response);
+                            sendToAllClients(response, clientSockets);
+                        }
+                        num_accepted_proposal = 0;
+                        listVoteKPU.clear();
+                        for (int i = 0; i < listPlayer.size(); i++) {
+                            listVoteKPU.add(new Vote(listPlayer.get(i).getPlayerId(), 0));
+                        }
                     }
                 } else {// command tidak terdefinisi
                     WrongResponse();
@@ -395,6 +401,7 @@ public class ServerPaxos {
                 //send msg to client
                 outToClient.print(json + '\n');
                 outToClient.flush();
+                listVoteKPU.add(new Vote(listPlayer.get(i).getPlayerId(), 0));
             }
         }
 
@@ -470,7 +477,7 @@ public class ServerPaxos {
             public void run() {
                 long duration = System.currentTimeMillis() - sendTimeMillis;
                 int majority = (playerSize - 2) / 2;
-                while (duration < 3000) {
+                while (num_accepted_proposal <= majority && duration < 3000) {
                     duration = System.currentTimeMillis() - sendTimeMillis;
                 }
                 ismajority = false;
