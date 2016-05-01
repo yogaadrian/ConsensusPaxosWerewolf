@@ -43,6 +43,11 @@ public class ClientPaxos {
     static public ArrayList<Player> listPlayer = new ArrayList();
     static public int port;
     static public int sequence = 0;
+    static public boolean play = false;
+    static public boolean day = true;
+    static public int days;
+    static public String role;
+    static public ArrayList<String> friend = new ArrayList();
 
     /**
      * @param args the command line arguments
@@ -109,7 +114,7 @@ public class ClientPaxos {
             System.out.println(json);
             sendToServer(json);
         } else if (msg.equals("prepare proposal")) {
-            
+
             //sendToServer(json);
         }
 
@@ -131,87 +136,139 @@ public class ClientPaxos {
                 Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
             } catch (ParseException ex) {
                 Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
+            } catch (Exception ex) {
+                Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
+                //fail respons yang aneh aneh itu di exception ato gimana sih?
             }
         }
 
-        public void Parse(String str) throws ParseException {
+        public void Parse(String str) throws ParseException, Exception {
             JSONParser parser = new JSONParser();
             JSONObject json = (JSONObject) parser.parse(str);
-            String status = (String) json.get("status");
-            if (status.equals("fail")) {
-                System.out.println("FAIL");
-                String description = (String) json.get("description");
-                System.out.println("description " + description);
-            } else if (status.equals("error")) {
-                System.out.println("ERROR");
-                String description = (String) json.get("description");
-                System.out.println("description " + description);
-            } else if (status.equals("ok")) {
-                System.out.println("OK");
-                //JIKA ADA JASON DENGAN KUNCI TERSEBUT
-                if (json.get("player_id") != null) {
-                    player_id = Integer.parseInt(json.get("player_id").toString());
-                    System.out.println("ID player :" + player_id);
-                }
-                if (json.get("description") != null) {
-                    System.out.println("description : " + json.get("description").toString());
-                }
-                if (json.get("clients") != null) {
-                    listPlayer.clear();
-                    System.out.println("clients");
-                    JSONArray jsonarray = (JSONArray) json.get("clients");
-                    for(int i=0; i<jsonarray.size();i++){
-                        JSONObject temp= (JSONObject)jsonarray.get(i);
-                        System.out.println(temp.toJSONString());
-                        listPlayer.add(new Player(Integer.parseInt(temp.get("player_id").toString()), Integer.parseInt(temp.get("is_alive").toString()), (String) temp.get("address"), Integer.parseInt(temp.get("port").toString()), temp.get("username").toString()));
-                        if (listPlayer.get(i).is_alive==0){
-                            listPlayer.get(i).setRole(temp.get("role").toString());
+            if (json.get("status") != null) {
+                String status = (String) json.get("status");
+                if (status.equals("fail")) {
+                    System.out.println("FAIL");
+                    String description = (String) json.get("description");
+                    System.out.println("description " + description);
+                } else if (status.equals("error")) {
+                    System.out.println("ERROR");
+                    String description = (String) json.get("description");
+                    System.out.println("description " + description);
+                } else if (status.equals("ok")) {
+                    System.out.println("OK");
+                    //JIKA ADA JASON DENGAN KUNCI TERSEBUT
+                    if (json.get("player_id") != null) {
+                        player_id = Integer.parseInt(json.get("player_id").toString());
+                        System.out.println("ID player :" + player_id);
+                    }
+                    if (json.get("description") != null) {
+                        System.out.println("description : " + json.get("description").toString());
+                    }
+                    if (json.get("clients") != null) {
+                        listPlayer.clear();
+                        System.out.println("clients");
+                        JSONArray jsonarray = (JSONArray) json.get("clients");
+                        for (int i = 0; i < jsonarray.size(); i++) {
+                            JSONObject temp = (JSONObject) jsonarray.get(i);
+                            System.out.println(temp.toJSONString());
+                            listPlayer.add(new Player(Integer.parseInt(temp.get("player_id").toString()), Integer.parseInt(temp.get("is_alive").toString()), (String) temp.get("address"), Integer.parseInt(temp.get("port").toString()), temp.get("username").toString()));
+                            if (listPlayer.get(i).is_alive == 0) {
+                                listPlayer.get(i).setRole(temp.get("role").toString());
+                            }
+                        }
+                        if ((player_id != listPlayer.size() - 1) && (player_id != listPlayer.size() - 2)) {
+                            Thread t2 = new Thread(new Acceptor());
+                            t2.start();
+                        } else {
+                            Thread t2 = new Thread(new Proposer());
+                            t2.start();
                         }
                     }
-                    if ((player_id != listPlayer.size()-1) && (player_id != listPlayer.size()-2)) {
-                        Thread t2 = new Thread(new Acceptor());
-                        t2.start();
+
+                }
+            }
+            //kalau yang diterima adalah protocol 12 ke bawah
+            if (json.get("method") != null) {
+                String method = (String) json.get("method");
+                if (method.equals("start")) {
+                    play = true;
+                    days=0;
+                    if (json.get("time").toString().equals("day")) {
+                        day = true;
                     } else {
-                        Thread t2 = new Thread(new Proposer());
-                        t2.start();
+                        day = false;
+                    }
+                    if (json.get("role").toString().equals("civilian")) {
+                        role = "civilian";
+                    } else {
+                        role = "werewolf";
+                        JSONArray jsonarray = (JSONArray) json.get("friend");
+                        for (int i = 0; i < jsonarray.size(); i++) {
+                            String tmp = (String) jsonarray.get(i);
+                            friend.add(tmp);
+                        }
+                    }
+                    String response;
+                    //build jsonObject
+                    JSONObject jsonObject = new JSONObject();
+                    jsonObject.put("status", "ok");
+
+                    //convert JSONObject to JSON to String
+                    response = jsonObject.toString();
+                    System.out.println("kirim : " + response);
+                    sendToServer(response);
+                } else if (method.equals("change_phase")) {
+                    if (json.get("time").toString().equals("day")) {
+                        day = true;
+                    } else {
+                        day = false;
+                    }
+                    days= (int) json.get("days");
+                    System.out.println("description : "+json.get("description").toString());
+                } else if(method.equals("game_over")){
+                    play=false;
+                    if (json.get("time").toString().equals(role)){
+                        System.out.println("you win");
+                    }else {
+                        System.out.println("you lose");
                     }
                 }
-
             }
             //get method
-            String method = (String) json.get("method");
-            if (method.equals("vote_now")){
-                String phase = (String)json.get("pahse");
-                if(phase.equals("day")) {
-                    // Kondisi siang
-                    String jsonVote;
-                    JSONObject jsonObject = new JSONObject();
+            /*String method = (String) json.get("method");
+             if (method.equals("vote_now")){
+             String phase = (String)json.get("pahse");
+             if(phase.equals("day")) {
+             // Kondisi siang
+             String jsonVote;
+             JSONObject jsonObject = new JSONObject();
 
-                    Scanner reader = new Scanner(System.in);
-                    System.out.print("vote player yang akan dibunuh : ");
-                    int player_id = reader.nextInt();
-                    //method yang akan dikirimkan
-                    jsonObject.put("method", "vote_civilian");
-                    jsonObject.put("player_id", player_id);
+             Scanner reader = new Scanner(System.in);
+             System.out.print("vote player yang akan dibunuh : ");
+             int player_id = reader.nextInt();
+             //method yang akan dikirimkan
+             jsonObject.put("method", "vote_civilian");
+             jsonObject.put("player_id", player_id);
 
-                    //Kirim ke KPU
-                    //receiveMessage(port);
+             //Kirim ke KPU
+             //receiveMessage(port);
 
-                } else if (phase.equals("night")) {
-                    // Kondisi malam
-                    String jsonVote;
-                    JSONObject jsonObject = new JSONObject();
+             } else if (phase.equals("night")) {
+             // Kondisi malam
+             String jsonVote;
+             JSONObject jsonObject = new JSONObject();
 
-                    Scanner reader = new Scanner(System.in);
-                    System.out.println("vote player yang akan dibunuh : ");
-                    int player_id = reader.nextInt();
-                    //method yang akan dikirimkan
-                    jsonObject.put("method", "vote_werewolf");
-                    jsonObject.put("player_id", player_id);
-                    //Kirim vote ke KPU
-                    //receiveMessage(port);
-                }
-            }
+             Scanner reader = new Scanner(System.in);
+             System.out.println("vote player yang akan dibunuh : ");
+             int player_id = reader.nextInt();
+             //method yang akan dikirimkan
+             jsonObject.put("method", "vote_werewolf");
+             jsonObject.put("player_id", player_id);
+             //Kirim vote ke KPU
+             //receiveMessage(port);
+             }
+             }*/
         }
     }
 
@@ -232,26 +289,26 @@ public class ClientPaxos {
         UnreliableSender unreliableSender = new UnreliableSender(datagramSocket);
 
         //while (true) {
-            //String sentence = inFromUser.readLine();
-            if (sentence.equals("quit")) {
-                //break;
-            }
+        //String sentence = inFromUser.readLine();
+        if (sentence.equals("quit")) {
+            //break;
+        }
 
-            byte[] sendData = sentence.getBytes();
-            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, targetPort);
-            unreliableSender.send(sendPacket);
+        byte[] sendData = sentence.getBytes();
+        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, targetPort);
+        unreliableSender.send(sendPacket);
         //}
         datagramSocket.close();
     }
-    
-     public static class Acceptor
+
+    public static class Acceptor
             extends Thread {
-         
-         String sentence;
-         long maxid[] = new long[2];
-         InetAddress IPAddress;
-         int senderport;
-         UnreliableSender unreliableSender;
+
+        String sentence;
+        long maxid[] = new long[2];
+        InetAddress IPAddress;
+        int senderport;
+        UnreliableSender unreliableSender;
 
         public void run() {
             try {
@@ -264,24 +321,23 @@ public class ClientPaxos {
                 Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
-        
+
         public void receiveMessage(int listenPort) throws Exception {
-        DatagramSocket serverSocket = new DatagramSocket(listenPort);
-        
+            DatagramSocket serverSocket = new DatagramSocket(listenPort);
 
-        byte[] receiveData = new byte[1024];
-        while (true) {
-            DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-            serverSocket.receive(receivePacket);
-            IPAddress = receivePacket.getAddress();
-            senderport = receivePacket.getPort();
-            unreliableSender = new UnreliableSender(serverSocket);
+            byte[] receiveData = new byte[1024];
+            while (true) {
+                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+                serverSocket.receive(receivePacket);
+                IPAddress = receivePacket.getAddress();
+                senderport = receivePacket.getPort();
+                unreliableSender = new UnreliableSender(serverSocket);
 
-            sentence = new String(receivePacket.getData(), 0, receivePacket.getLength());
-            System.out.println("RECEIVED: " + sentence);
-            Parse(sentence);
+                sentence = new String(receivePacket.getData(), 0, receivePacket.getLength());
+                System.out.println("RECEIVED: " + sentence);
+                Parse(sentence);
+            }
         }
-    }
 
         public void Parse(String str) throws ParseException {
             JSONParser parser = new JSONParser();
@@ -291,8 +347,8 @@ public class ClientPaxos {
                 try {
                     JSONArray jsonarray = (JSONArray) json.get("proposal_id");
                     long curid[] = new long[2];
-                    curid[0] = (long)jsonarray.get(0);
-                    curid[1] = (long)jsonarray.get(1);
+                    curid[0] = (long) jsonarray.get(0);
+                    curid[1] = (long) jsonarray.get(1);
                     boolean valid = false;
                     //System.out.println("current propid : (" + curid[0] +  ", " + curid[1] + ")");
                     if (curid[0] > maxid[0]) {
@@ -324,7 +380,7 @@ public class ClientPaxos {
                     byte[] sendData = response.getBytes();
                     DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
                     unreliableSender.send(sendPacket);
-                    
+
                     if (valid) {
                         maxid[0] = curid[0];
                         maxid[1] = curid[1];
@@ -350,37 +406,37 @@ public class ClientPaxos {
                     listPlayer.clear();
                     System.out.println("clients");
                     JSONArray jsonarray = (JSONArray) json.get("clients");
-                    for(int i=0; i<jsonarray.size();i++){
-                        JSONObject temp= (JSONObject)jsonarray.get(i);
+                    for (int i = 0; i < jsonarray.size(); i++) {
+                        JSONObject temp = (JSONObject) jsonarray.get(i);
                         System.out.println(temp.toJSONString());
                         listPlayer.add(new Player(Integer.parseInt(temp.get("player_id").toString()), Integer.parseInt(temp.get("is_alive").toString()), (String) temp.get("address"), Integer.parseInt(temp.get("port").toString()), temp.get("username").toString()));
-                        if (listPlayer.get(i).is_alive==0){
+                        if (listPlayer.get(i).is_alive == 0) {
                             listPlayer.get(i).setRole(temp.get("role").toString());
                         }
                     }
                 }
-            } else if(method.equals("vote_werewolf")) {
+            } else if (method.equals("vote_werewolf")) {
                 String jsonVote;
                 JSONObject jsonObject = new JSONObject();
                 int player_id = Integer.parseInt(json.get("player_id").toString());
-                int totalPlayerId = listPlayer.size()-1;
-                if(player_id <= totalPlayerId ) {
+                int totalPlayerId = listPlayer.size() - 1;
+                if (player_id <= totalPlayerId) {
                     jsonObject.put("status", "ok");
                     jsonObject.put("description", "vote werewolf accepted");
-                    
+
                     totalVote++;
                     ArrayList<Vote> listVote = new ArrayList();
                     //insialisasi list vote
-                    for(int i = 0; i < listPlayer.size(); i++) {
+                    for (int i = 0; i < listPlayer.size(); i++) {
                         int id = listPlayer.get(i).getPlayerId();
                         listVote.add(new Vote(id, 0));
                     }
                     //Masukan vote ke dalam array list
-                    if(listVote.size() == 0) {
+                    if (listVote.size() == 0) {
                         listVote.add(new Vote(player_id, 1));
                     } else {
-                        for(int i = 0; i < listVote.size(); i++) {
-                            if(listVote.get(i).getPlayerId() == player_id) {
+                        for (int i = 0; i < listVote.size(); i++) {
+                            if (listVote.get(i).getPlayerId() == player_id) {
                                 int currentVote = listVote.get(i).getCountVote();
                                 listVote.get(i).setCountVote(currentVote++);
                             } else {
@@ -394,33 +450,33 @@ public class ClientPaxos {
                     System.out.println("kirim : " + response);
                     byte[] sendData = response.getBytes();
                     DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
-                    unreliableSender.send(sendPacket);
+                    //unreliableSender.send(sendPacket);
                 } else {
                     jsonObject.put("status", "fail");
                     jsonObject.put("description", "vote werewolf rejected");
                 }
-            } else if(method.equals("vote_civilian")) {
+            } else if (method.equals("vote_civilian")) {
                 String jsonVote;
                 JSONObject jsonObject = new JSONObject();
-                
+
                 jsonObject.put("status", "ok");
                 jsonObject.put("description", "vote civilian accepted");
                 int player_id = Integer.parseInt(json.get("player_id").toString());
-                int totalPlayerId = listPlayer.size()-1;
+                int totalPlayerId = listPlayer.size() - 1;
                 // masukan vote ke dalam array list
-                if(player_id <= totalPlayerId ) {
+                if (player_id <= totalPlayerId) {
                     totalVote++;
                     ArrayList<Vote> listVote = new ArrayList();
                     //insialisasi list vote
-                    for(int i = 0; i < listPlayer.size(); i++) {
+                    for (int i = 0; i < listPlayer.size(); i++) {
                         int id = listPlayer.get(i).getPlayerId();
                         listVote.add(new Vote(id, 0));
                     }
-                    if(listVote.size() == 0) {
+                    if (listVote.size() == 0) {
                         listVote.add(new Vote(player_id, 1));
                     } else {
-                        for(int i = 0; i < listVote.size(); i++) {
-                            if(listVote.get(i).getPlayerId() == player_id) {
+                        for (int i = 0; i < listVote.size(); i++) {
+                            if (listVote.get(i).getPlayerId() == player_id) {
                                 int currentVote = listVote.get(i).getCountVote();
                                 listVote.get(i).setCountVote(currentVote++);
                             } else {
@@ -434,7 +490,7 @@ public class ClientPaxos {
                     System.out.println("kirim : " + response);
                     byte[] sendData = response.getBytes();
                     DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
-                    unreliableSender.send(sendPacket);
+                    //unreliableSender.send(sendPacket);
                 } else {
                     jsonObject.put("status", "fail");
                     jsonObject.put("description", "vote civilian rejected");
@@ -442,13 +498,13 @@ public class ClientPaxos {
             }
         }
     }
-     
-     public static class Proposer
+
+    public static class Proposer
             extends Thread {
-         
-         String sentence;
-         long maxid[] = new long[2];
-         UnreliableSender unreliableSender;
+
+        String sentence;
+        long maxid[] = new long[2];
+        UnreliableSender unreliableSender;
 
         public void run() {
             try {
@@ -465,7 +521,7 @@ public class ClientPaxos {
                 json = jsonObject.toString();
                 System.out.println(json);
                 for (int i = 0; i < listPlayer.size(); i++) {
-                    if ((listPlayer.get(i).getPlayerId() != listPlayer.size()-1) && (listPlayer.get(i).getPlayerId() != listPlayer.size()-2)) {
+                    if ((listPlayer.get(i).getPlayerId() != listPlayer.size() - 1) && (listPlayer.get(i).getPlayerId() != listPlayer.size() - 2)) {
                         System.out.println(listPlayer.get(i).getAddress());
                         System.out.println(listPlayer.get(i).getPort());
                         sendMessage(listPlayer.get(i).getAddress(), listPlayer.get(i).getPort(), json);
@@ -480,68 +536,67 @@ public class ClientPaxos {
                 Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
-        
+
         public void receiveMessage(int listenPort) throws Exception {
-        DatagramSocket serverSocket = new DatagramSocket(listenPort);
-        
+            DatagramSocket serverSocket = new DatagramSocket(listenPort);
 
-        byte[] receiveData = new byte[1024];
-        while (true) {
-            DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-            serverSocket.receive(receivePacket);
+            byte[] receiveData = new byte[1024];
+            while (true) {
+                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+                serverSocket.receive(receivePacket);
 
-            sentence = new String(receivePacket.getData(), 0, receivePacket.getLength());
-            System.out.println("RECEIVED: " + sentence);
-            //Parse(sentence);
+                sentence = new String(receivePacket.getData(), 0, receivePacket.getLength());
+                System.out.println("RECEIVED: " + sentence);
+                //Parse(sentence);
+            }
         }
-    }
 
         public void Parse(String str) throws ParseException {
             JSONParser parser = new JSONParser();
             JSONObject json = (JSONObject) parser.parse(str);
             String method = (String) json.get("method");
             if (method.equals("prepare_proposal")) {
-                
-                    JSONArray jsonarray = (JSONArray) json.get("proposal_id");
-                    long curid[] = new long[2];
-                    curid[0] = (long)jsonarray.get(0);
-                    curid[1] = (long)jsonarray.get(1);
-                    boolean valid = false;
-                    //System.out.println("current propid : (" + curid[0] +  ", " + curid[1] + ")");
-                    if (curid[0] > maxid[0]) {
+
+                JSONArray jsonarray = (JSONArray) json.get("proposal_id");
+                long curid[] = new long[2];
+                curid[0] = (long) jsonarray.get(0);
+                curid[1] = (long) jsonarray.get(1);
+                boolean valid = false;
+                //System.out.println("current propid : (" + curid[0] +  ", " + curid[1] + ")");
+                if (curid[0] > maxid[0]) {
+                    valid = true;
+                } else if (curid[0] == maxid[0]) {
+                    if (curid[1] > maxid[1]) {
                         valid = true;
-                    } else if (curid[0] == maxid[0]) {
-                        if (curid[1] > maxid[1]) {
-                            valid = true;
-                        }
                     }
-                    //System.out.println("current propid : (" + maxid[0] +  ", " + maxid[1] + ")");
-                    JSONObject jsonObject = new JSONObject();
-                    if (valid) {
-                        jsonObject.put("status", "ok");
-                        jsonObject.put("description", "accepted");
-                        JSONArray ja = new JSONArray();
-                        if ((maxid[0] != 0) || (maxid[1] != 0)) {
-                            ja.add(maxid[0]);
-                            ja.add(maxid[1]);
-                        }
-                        jsonObject.put("previous_accepted", ja);
-                    } else {
-                        jsonObject.put("status", "fail");
-                        jsonObject.put("description", "rejected");
+                }
+                //System.out.println("current propid : (" + maxid[0] +  ", " + maxid[1] + ")");
+                JSONObject jsonObject = new JSONObject();
+                if (valid) {
+                    jsonObject.put("status", "ok");
+                    jsonObject.put("description", "accepted");
+                    JSONArray ja = new JSONArray();
+                    if ((maxid[0] != 0) || (maxid[1] != 0)) {
+                        ja.add(maxid[0]);
+                        ja.add(maxid[1]);
                     }
-                    // convert JSONObject to JSON to String
-                    String response = jsonObject.toString();
-                    System.out.println("kirim : " + response);
-                    byte[] sendData = response.getBytes();
+                    jsonObject.put("previous_accepted", ja);
+                } else {
+                    jsonObject.put("status", "fail");
+                    jsonObject.put("description", "rejected");
+                }
+                // convert JSONObject to JSON to String
+                String response = jsonObject.toString();
+                System.out.println("kirim : " + response);
+                byte[] sendData = response.getBytes();
 //                    /DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
-                    //unreliableSender.send(sendPacket);
-                    
-                    if (valid) {
-                        maxid[0] = curid[0];
-                        maxid[1] = curid[1];
-                    }
-               
+                //unreliableSender.send(sendPacket);
+
+                if (valid) {
+                    maxid[0] = curid[0];
+                    maxid[1] = curid[1];
+                }
+
             } else if (method.equals("error")) {
                 System.out.println("ERROR");
                 String description = (String) json.get("description");
@@ -560,11 +615,11 @@ public class ClientPaxos {
                     listPlayer.clear();
                     System.out.println("clients");
                     JSONArray jsonarray = (JSONArray) json.get("clients");
-                    for(int i=0; i<jsonarray.size();i++){
-                        JSONObject temp= (JSONObject)jsonarray.get(i);
+                    for (int i = 0; i < jsonarray.size(); i++) {
+                        JSONObject temp = (JSONObject) jsonarray.get(i);
                         System.out.println(temp.toJSONString());
                         listPlayer.add(new Player(Integer.parseInt(temp.get("player_id").toString()), Integer.parseInt(temp.get("is_alive").toString()), (String) temp.get("address"), Integer.parseInt(temp.get("port").toString()), temp.get("username").toString()));
-                        if (listPlayer.get(i).is_alive==0){
+                        if (listPlayer.get(i).is_alive == 0) {
                             listPlayer.get(i).setRole(temp.get("role").toString());
                         }
                     }
