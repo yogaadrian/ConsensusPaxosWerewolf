@@ -42,10 +42,13 @@ public class ClientPaxos {
     static public int totalVote = 0;
     static public boolean is_join = false;
     static public ArrayList<Player> listPlayer = new ArrayList();
+    static public ArrayList<Vote> listVote = new ArrayList();
     static public int port;
     static public int sequence = 0;
     static public String paxos_role;
     static public long timeout = 3000;
+    static public String time;
+    static int acc_kpu_id = -1;
 
     /**
      * @param args the command line arguments
@@ -203,7 +206,7 @@ public class ClientPaxos {
                         System.out.println("kirim : " + jsonOut);
                         
                         for (int i = 0; i < listPlayer.size(); i++) {
-                            if (listPlayer.get(i).getPlayerId() == player_id) {
+                            if (listPlayer.get(i).getPlayerId() == acc_kpu_id) {
                                 UDPThread.sendMessage(listPlayer.get(i).getAddress(), listPlayer.get(i).getPort(), jsonOut);
                             }
                         }
@@ -226,13 +229,15 @@ public class ClientPaxos {
                         System.out.println("kirim : " + jsonOut);
                         
                         for (int i = 0; i < listPlayer.size(); i++) {
-                            if (listPlayer.get(i).getPlayerId() == player_id) {
+                            if (listPlayer.get(i).getPlayerId() == acc_kpu_id) {
                                 UDPThread.sendMessage(listPlayer.get(i).getAddress(), listPlayer.get(i).getPort(), jsonOut);
                             }
                         }
                         //Kirim vote ke KPU
                         //receiveMessage(port);
                     }
+                } else if (method.equals("kpu_selected")) {
+                    acc_kpu_id = Integer.parseInt(json.get("kpu_id").toString());
                 }
             }
         }
@@ -251,7 +256,7 @@ public class ClientPaxos {
          
          String sentence;
          long max_proposed_id[] = new long[2];
-         static int acc_kpu_id = -1;
+         
          InetAddress IPAddress;
          int senderport;
          static UnreliableSender unreliableSender;
@@ -444,6 +449,8 @@ public class ClientPaxos {
                     }
                 } else if(method.equals("vote_werewolf")) {
                     String jsonVote;
+//                    Thread t = new Thread(new UDPThread.MajorityCheckerVote());
+//                    t.start();
                     JSONObject jsonObject = new JSONObject();
                     int player_id = Integer.parseInt(json.get("player_id").toString());
                     int totalPlayerId = listPlayer.size()-1;
@@ -587,6 +594,85 @@ public class ClientPaxos {
                                 accept();
                                 break;
                             }
+                        } catch (Exception ex) {
+                            Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
+                }
+            }
+        }
+        
+        //MajorityChecker for Vote
+        public static class MajorityCheckerVote extends Thread {
+            static long sendTimeMillis;
+            static int playerSize;
+        
+            MajorityCheckerVote() {
+                sendTimeMillis = System.currentTimeMillis();
+                playerSize = listPlayer.size();
+            }
+
+            public void run() {
+                while (true) {
+                    long duration = System.currentTimeMillis() - sendTimeMillis;
+                    int majority = (playerSize) / 2;
+                    System.out.println("start : " + duration);
+                    while (duration < 3000) {
+                        duration = System.currentTimeMillis() - sendTimeMillis;
+                    }
+                    System.out.println("end : " + duration);
+                    
+                    // mencari vote terbanyak
+                    String jsonVote;
+                    JSONObject jsonObject = new JSONObject();
+                    int max = -1;
+                    boolean found = false;
+                    int player_killed = -1;
+                    for(int i = 0; i < listVote.size(); i++) {
+                        if(listVote.get(i).getCountVote() > max ) {
+                            max = listVote.get(i).getCountVote();
+                            player_killed = listVote.get(i).getPlayerId();
+                            found = true;
+                        } else if (listVote.get(i).getCountVote() == max ) {
+                            found = false;
+                        }
+                    }
+                    //temp array
+                    JSONArray ja = new JSONArray();
+                    for (int i = 0; i < listPlayer.size(); i++) {
+                        JSONArray temparray = new JSONArray();
+                        temparray.add(listVote.get(i).getPlayerId());
+                        temparray.add(listVote.get(i).getCountVote());
+                        ja.add(temparray);
+                    }
+                    if (found) {
+                        if (time.equals("day")) {
+                            jsonObject.put("method", "vote_result_werewolf");
+                        } else  if (time.equals("night")) {
+                            jsonObject.put("method", "vote_result_civilian");
+                        }
+                        jsonObject.put("vote_status", 1);
+                        jsonObject.put("player_killed", player_killed);
+                        jsonObject.put("vote_result", ja);
+                        jsonVote = jsonObject.toString();
+                        System.out.println(jsonVote);
+                        try {
+                            sendToServer(jsonVote);
+                        } catch (Exception ex) {
+                            Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    } else {
+                        if (time.equals("day")) {
+                            jsonObject.put("method", "vote_result_werewolf");
+                        } else  if (time.equals("night")) {
+                            jsonObject.put("method", "vote_result_civilian");
+                        }
+                        jsonObject.put("vote_status", -1);
+                        jsonObject.put("vote_result", ja);
+                        jsonVote = jsonObject.toString();
+                        System.out.println(jsonVote);
+                        try {
+                            sendToServer(jsonVote);
                         } catch (Exception ex) {
                             Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
                         }
