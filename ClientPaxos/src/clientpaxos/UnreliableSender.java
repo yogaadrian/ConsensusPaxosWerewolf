@@ -32,6 +32,9 @@ public class UnreliableSender {
                         System.out.println("send successful");
 			datagramSocket.send(packet);
 		}
+                else {
+                    System.out.println("send failed");
+                }
 	}
     
 }

@@ -6,6 +6,7 @@
 package clientpaxos;
 
 import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -63,13 +64,29 @@ public class ClientPaxos {
     public static void main(String[] args) throws IOException, InterruptedException, Exception {
         // TODO code application logic here
 
+        String host = "";
+        int port = 0;
+        
+        try(BufferedReader br = new BufferedReader(new FileReader("ipserver.txt"))) {
+            StringBuilder sb = new StringBuilder();
+            String line = br.readLine();
+
+            if (line != null) {
+                host = line;
+                line = br.readLine();
+                if (line != null) {
+                    port = Integer.parseInt(line);
+                }
+            }
+        }
+        
         Scanner scan = new Scanner(System.in);
 
-        System.out.print("Input server IP hostname : ");
-        String host = scan.nextLine();
-        System.out.print("Input server Port : ");
-        int port = scan.nextInt();
-        scan.nextLine();
+        //System.out.print("Input server IP hostname : ");
+        //host = scan.nextLine();
+        //System.out.print("Input server Port : ");
+        //port = scan.nextInt();
+        //scan.nextLine();
         clientSocket = new Socket(host, port);
         System.out.println("Connected");
         Thread t = new Thread(new StringGetter());
@@ -98,7 +115,7 @@ public class ClientPaxos {
             scan.nextLine();
             jsonObject.put("udp_port", port);
             json = jsonObject.toString();
-            System.out.println(json);
+            System.out.println("Send to server : " + json);
             sendToServer(json);
         } else if (msg.equals("leave")) {
             String json;
@@ -106,19 +123,26 @@ public class ClientPaxos {
             JSONObject jsonObject = new JSONObject();
             jsonObject.put("method", "leave");
             json = jsonObject.toString();
-            System.out.println(json);
+            System.out.println("Send to server : " + json);
             sendToServer(json);
         } else if (msg.equals("ready")) {
             String json;
             JSONObject jsonObject = new JSONObject();
             jsonObject.put("method", "ready");
             json = jsonObject.toString();
-            System.out.println(json);
+            System.out.println("Send to server : " + json);
             sendToServer(json);
         } else if (msg.equals("client address")) {
             getClientAddress();
         } else if (msg.equals("prepare")) {
             UDPThread.propose();
+        } else {
+            String json;
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("method", msg);
+            json = jsonObject.toString();
+            System.out.println("Send to server : " + json);
+            sendToServer(json);
         }
 
     }
@@ -128,7 +152,7 @@ public class ClientPaxos {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("method", "client_address");
         json = jsonObject.toString();
-        System.out.println(json);
+        System.out.println("Send to server : " + json);
         sendToServer(json);
     }
 
@@ -141,7 +165,7 @@ public class ClientPaxos {
                 String response;
                 while (true) {
                     response = inFromServer.readLine();
-                    System.out.println(response);
+                    System.out.println("Receive from server : " + response);
                     Parse(response);
                 }
             } catch (IOException ex) {
@@ -227,10 +251,9 @@ public class ClientPaxos {
 
                     //convert JSONObject to JSON to String
                     response = jsonObject.toString();
-                    System.out.println("kirim : " + response);
+                    System.out.println("kirim ke server : " + response);
                     sendToServer(response);
                     getClientAddress();
-                    //propose();
                 } else if (method.equals("change_phase")) {
                     if (json.get("time").toString().equals("day")) {
                         day = true;
@@ -239,15 +262,32 @@ public class ClientPaxos {
                     }
                     days = (int) json.get("days");
                     System.out.println("description : " + json.get("description").toString());
+                    String response;
+                    //build jsonObject
+                    JSONObject jsonObject = new JSONObject();
+                    jsonObject.put("status", "ok");
+
+                    //convert JSONObject to JSON to String
+                    response = jsonObject.toString();
+                    System.out.println("kirim ke server : " + response);
+                    sendToServer(response);
                     getClientAddress();
                 } else if (method.equals("game_over")) {
                     play = false;
-                    if (json.get("time").toString().equals(role)) {
+                    if (json.get("winner").toString().equals(role)) {
                         System.out.println("you win");
                     } else {
                         System.out.println("you lose");
-
                     }
+                    String response;
+                    //build jsonObject
+                    JSONObject jsonObject = new JSONObject();
+                    jsonObject.put("status", "ok");
+
+                    //convert JSONObject to JSON to String
+                    response = jsonObject.toString();
+                    System.out.println("kirim ke server : " + response);
+                    sendToServer(response);
                 } else if (method.equals("vote_now")) {
                     String phase = (String) json.get("phase");
                     if (phase.equals("day")) {
@@ -263,16 +303,14 @@ public class ClientPaxos {
                         jsonObject.put("method", "vote_civilian");
                         jsonObject.put("player_id", player_id);
                         String jsonOut = jsonObject.toString();
-                        System.out.println("kirim : " + jsonOut);
+                        System.out.println("kirim ke kpu : " + jsonOut);
 
+                        //Kirim ke KPU
                         for (int i = 0; i < listPlayer.size(); i++) {
-                            if (listPlayer.get(i).getPlayerId() == player_id) {
+                            if (listPlayer.get(i).getPlayerId() == acc_kpu_id) {
                                 UDPThread.sendMessage(listPlayer.get(i).getAddress(), listPlayer.get(i).getPort(), jsonOut);
                             }
                         }
-
-                        //Kirim ke KPU
-                        //receiveMessage(port);
                     } else if (phase.equals("night")) {
                         // Kondisi malam
                         String jsonVote;
@@ -285,10 +323,11 @@ public class ClientPaxos {
                         jsonObject.put("method", "vote_werewolf");
                         jsonObject.put("player_id", player_id);
                         String jsonOut = jsonObject.toString();
-                        System.out.println("kirim : " + jsonOut);
-
+                        System.out.println("kirim ke kpu : " + jsonOut);
+                        
+                        //Kirim ke KPU
                         for (int i = 0; i < listPlayer.size(); i++) {
-                            if (listPlayer.get(i).getPlayerId() == player_id) {
+                            if (listPlayer.get(i).getPlayerId() == acc_kpu_id) {
                                 UDPThread.sendMessage(listPlayer.get(i).getAddress(), listPlayer.get(i).getPort(), jsonOut);
                             }
                         }
@@ -325,12 +364,10 @@ public class ClientPaxos {
             clientSocket = new DatagramSocket(port);
             unreliableSender = new UnreliableSender(clientSocket);
             phase = "prepare";
-            //ParseCommand("client address");
         }
 
         public void run() {
             try {
-                //propose();
                 receiveMessage();
             } catch (IOException ex) {
                 Logger.getLogger(ClientPaxos.class.getName()).log(Level.SEVERE, null, ex);
@@ -412,7 +449,7 @@ public class ClientPaxos {
                 senderport = receivePacket.getPort();
 
                 sentence = new String(receivePacket.getData(), 0, receivePacket.getLength());
-                System.out.println("RECEIVED: " + sentence);
+                System.out.println("RECEIVED FROM UDP CLIENT : " + sentence);
                 Parse(sentence);
             }
         }
@@ -450,7 +487,7 @@ public class ClientPaxos {
                         }
                         // convert JSONObject to JSON to String
                         String response = jsonObject.toString();
-                        System.out.println("kirim : " + response);
+                        System.out.println("kirim ke udp client : " + response);
                         byte[] sendData = response.getBytes();
                         DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
                         unreliableSender.send(sendPacket);
@@ -488,7 +525,7 @@ public class ClientPaxos {
                         }
                         // convert JSONObject to JSON to String
                         String response = jsonObject.toString();
-                        System.out.println("kirim : " + response);
+                        System.out.println("kirim ke udp client : " + response);
                         byte[] sendData = response.getBytes();
                         DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
                         unreliableSender.send(sendPacket);
@@ -533,13 +570,18 @@ public class ClientPaxos {
                         }
                         // convert JSONObject to JSON to String
                         String response = jsonObject.toString();
-                        System.out.println("kirim : " + response);
+                        System.out.println("kirim ke udp client : " + response);
                         byte[] sendData = response.getBytes();
                         DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
                         clientSocket.send(sendPacket);
                     } else {
                         jsonObject.put("status", "fail");
                         jsonObject.put("description", "vote werewolf rejected");
+                        String response = jsonObject.toString();
+                        System.out.println("kirim ke udp client : " + response);
+                        byte[] sendData = response.getBytes();
+                        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
+                        clientSocket.send(sendPacket);
                     }
                 } else if (method.equals("vote_civilian")) {
                     String jsonVote;
@@ -566,13 +608,18 @@ public class ClientPaxos {
                         }
                         // convert JSONObject to JSON to String
                         String response = jsonObject.toString();
-                        System.out.println("kirim : " + response);
+                        System.out.println("kirim ke udp client : " + response);
                         byte[] sendData = response.getBytes();
                         DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
                         clientSocket.send(sendPacket);
                     } else {
                         jsonObject.put("status", "fail");
                         jsonObject.put("description", "vote civilian rejected");
+                        String response = jsonObject.toString();
+                        System.out.println("kirim ke udp client : " + response);
+                        byte[] sendData = response.getBytes();
+                        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
+                        clientSocket.send(sendPacket);
                     }
                 } else {
                     String response;
@@ -583,7 +630,7 @@ public class ClientPaxos {
 
                     //convert JSONObject to JSON to String
                     response = jsonObject.toString();
-                    System.out.println("kirim : " + response);
+                    System.out.println("kirim ke udp client: " + response);
                     byte[] sendData = response.getBytes();
                     DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, senderport);
                     clientSocket.send(sendPacket);
