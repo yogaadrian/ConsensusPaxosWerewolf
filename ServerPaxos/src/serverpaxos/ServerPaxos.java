@@ -69,7 +69,7 @@ public class ServerPaxos {
             Socket socket = server.accept();
             System.out.println("Connected");
             ClientController clientcontroller = new ClientController(socket);
-            clientSockets.add(socket);
+            
 
             Thread t = new Thread(clientcontroller);
             t.start();
@@ -158,6 +158,7 @@ public class ServerPaxos {
                     if (checkuser(username) && !play) {
                         listPlayer.add(new Player(totalClient++, 1, (String) json.get("udp_address"), Integer.parseInt(json.get("udp_port").toString()), username));
                         totalPlayer++;
+                        clientSockets.add(socket);
                         player_id = totalClient - 1;
                         String response;
                         //build jsonObject
@@ -199,6 +200,7 @@ public class ServerPaxos {
                     }
                 } else if (method.equals("ready")) {//comand ready
                     if (!listPlayer.get(checkid(player_id)).getIsReady()) {//belum ready
+                        listPlayer.get(checkid(player_id)).setIsReady(true);
                         String response;
                         //build jsonObject
                         JSONObject jsonObject = new JSONObject();
@@ -208,6 +210,9 @@ public class ServerPaxos {
                         response = jsonObject.toString();
                         System.out.println("kirim : " + response);
                         SendToClient(response);
+                        if (checkready()){
+                            StartGame();
+                        }
                     } else {//sudah ready
                         FailResponse("you have been ready");
                     }
@@ -240,7 +245,6 @@ public class ServerPaxos {
                     response = jsonObject.toString();
                     System.out.println("kirim : " + response);
                     SendToClient(response);
-                    StartGame();
                 } else if (method.equals("client_address")) {
                     String response;
                     //build jsonObject
@@ -329,6 +333,18 @@ public class ServerPaxos {
             }
         }
 
+        //cek apakah semua player sudah ready
+        boolean checkready (){
+            if (listPlayer.size()<6 ){
+                return false;
+            }
+            for(int i=0 ; i< listPlayer.size();i++){
+                if(!listPlayer.get(i).getIsReady())
+                    return false;
+            }
+            return true;
+        }
+        
         //mengecek adakah id dalam list player
         int checkid(int id) {
             for (int i = 0; i < listPlayer.size(); i++) {
@@ -404,7 +420,7 @@ public class ServerPaxos {
             jsonObject.put("description", "game is started");
             json = jsonObject.toString();
             System.out.println(json);
-            SendToClient(json);
+            sendToAllClients(json, clientSockets);
         }
 
         //PROSEDUR UNTUK MENGGANTI TIME
@@ -424,7 +440,8 @@ public class ServerPaxos {
             jsonObject.put("description", "Time has changed");
             json = jsonObject.toString();
             System.out.println(json);
-            SendToClient(json);
+            sendToAllClients(json, clientSockets);
+       
         }
 
         public void CheckGameOver() throws Exception {
@@ -436,11 +453,14 @@ public class ServerPaxos {
                 jsonObject.put("winner", "civilian");
             } else if (nwerewolf == ncivilian) {
                 jsonObject.put("winner", "werewolf");
+            } else {
+                return;
             }
             jsonObject.put("description", "game over");
             json = jsonObject.toString();
             System.out.println(json);
-            SendToClient(json);
+            sendToAllClients(json, clientSockets);
+       
 
         }
 
