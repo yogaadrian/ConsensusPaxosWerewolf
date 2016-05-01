@@ -18,6 +18,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.logging.Level;
@@ -46,8 +47,7 @@ public class ServerPaxos {
     static public int days = 0;
     static public int ncivilian;
     static public int nwerewolf;
-
-    static public ArrayList<Socket> clientSockets = new ArrayList();
+    static public HashMap<Integer, Socket> clientSockets = new HashMap();
 
     /**
      * @param args the command line arguments
@@ -81,7 +81,7 @@ public class ServerPaxos {
         // TODO code application logic here
     }
 
-    public static void sendToAllClients(String msg, ArrayList<Socket> sockets) throws IOException {
+    public static void sendToAllClients(String msg, HashMap<Integer, Socket> sockets) throws IOException {
         for (int i = 0; i < sockets.size(); i++) {
             //create output stream attached to socket
             PrintWriter outToClient = new PrintWriter(new OutputStreamWriter(sockets.get(i).getOutputStream()));
@@ -158,8 +158,8 @@ public class ServerPaxos {
                     if (checkuser(username) && !play) {
                         listPlayer.add(new Player(totalClient++, 1, (String) json.get("udp_address"), Integer.parseInt(json.get("udp_port").toString()), username));
                         totalPlayer++;
-                        clientSockets.add(socket);
                         player_id = totalClient - 1;
+                        clientSockets.put(player_id, socket);
                         String response;
                         //build jsonObject
                         JSONObject jsonObject = new JSONObject();
@@ -245,35 +245,6 @@ public class ServerPaxos {
                     response = jsonObject.toString();
                     System.out.println("kirim : " + response);
                     SendToClient(response);
-                } else if (method.equals("client_address")) {
-                    String response;
-                    //build jsonObject
-                    JSONObject jsonObject = new JSONObject();
-                    jsonObject.put("status", "ok");
-
-                    //tempjason untuk array
-                    JSONArray ja = new JSONArray();
-                    for (int i = 0; i < listPlayer.size(); i++) {
-                        JSONObject tempobject = new JSONObject();
-                        tempobject.put("player_id", listPlayer.get(i).getPlayerId());
-                        tempobject.put("is_alive", listPlayer.get(i).getIsAlive());
-                        tempobject.put("address", listPlayer.get(i).getAddress());
-                        tempobject.put("port", listPlayer.get(i).getPort());
-                        tempobject.put("username", listPlayer.get(i).getUsername());
-                        if (listPlayer.get(i).getIsAlive() == 0) {
-
-                            tempobject.put("role", listPlayer.get(i).getRole());
-                        }
-                        ja.add(tempobject);
-                    }
-
-                    jsonObject.put("clients", ja);
-                    jsonObject.put("description", "list of clients retrieved");
-
-                    //convert JSONObject to JSON to String
-                    response = jsonObject.toString();
-                    System.out.println("kirim : " + response);
-                    SendToClient(response);
                 } else if (method.equals("accepted_proposal")) {
                     if (t == null) {
                         listVoteKPU.clear();
@@ -292,7 +263,6 @@ public class ServerPaxos {
                         t = new Thread(new MajorityChecker());
                         t.start();
                     }
-                    System.out.println("b");
                     if (checkid(kpu_id) != -1) {
                         String response;
                         //build jsonObject
@@ -303,8 +273,8 @@ public class ServerPaxos {
                         response = jsonObject.toString();
                         System.out.println("kirim : " + response);
                         SendToClient(response);
-                    } else {//sudah ready
-                        FailResponse("fail to achieve majority");
+                    } else {
+                        FailResponse("kpu_id not valid");
                     }
                     if (t != null) {
                         t.join();
@@ -399,28 +369,33 @@ public class ServerPaxos {
                 randomrole = true;
                 RandomRole();
             }
-
-            JSONObject jsonObject = new JSONObject();
-            jsonObject.put("method", "start");
-            play = true;
-            jsonObject.put("time", "day");
-            day = true;
-            jsonObject.put("role", listPlayer.get(checkid(player_id)).getRole());
-            if (listPlayer.get(checkid(player_id)).getRole().equals("werewolf")) {
-                //tempjason untuk array
-                JSONArray ja = new JSONArray();
-                for (int i = 0; i < listPlayer.size(); i++) {
-                    if (listPlayer.get(i).getRole().equals("werewolf") && i != checkid(player_id)) {
-                        ja.add(listPlayer.get(i).getUsername());
+            
+            for (int i = 0; i < listPlayer.size(); i++) {
+                JSONObject jsonObject = new JSONObject();
+                jsonObject.put("method", "start");
+                play = true;
+                jsonObject.put("time", "day");
+                day = true;
+                jsonObject.put("role", listPlayer.get(checkid(i)).getRole());
+                if (listPlayer.get(checkid(i)).getRole().equals("werewolf")) {
+                    //tempjason untuk array
+                    JSONArray ja = new JSONArray();
+                    for (int j = 0; j < listPlayer.size(); j++) {
+                        if (listPlayer.get(j).getRole().equals("werewolf") && j != checkid(i)) {
+                            ja.add(listPlayer.get(j).getUsername());
+                        }
                     }
+                    jsonObject.put("friend", ja);
                 }
-
-                jsonObject.put("friend", ja);
+                jsonObject.put("description", "game is started");
+                json = jsonObject.toString();
+                System.out.println(json);
+                //create output stream attached to socket
+                PrintWriter outToClient = new PrintWriter(new OutputStreamWriter(clientSockets.get(i).getOutputStream()));
+                //send msg to client
+                outToClient.print(json + '\n');
+                outToClient.flush();
             }
-            jsonObject.put("description", "game is started");
-            json = jsonObject.toString();
-            System.out.println(json);
-            sendToAllClients(json, clientSockets);
         }
 
         //PROSEDUR UNTUK MENGGANTI TIME
