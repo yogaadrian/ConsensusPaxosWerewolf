@@ -99,6 +99,7 @@ public class ClientPaxos {
             sendToServer(json);
         } else if (msg.equals("leave")) {
             String json;
+            player_id = -1;
             JSONObject jsonObject = new JSONObject();
             jsonObject.put("method", "leave");
             json = jsonObject.toString();
