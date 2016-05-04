@@ -68,11 +68,11 @@ public class ServerPaxos {
         try {
             ip = InetAddress.getLocalHost().getHostAddress();
             System.out.println("Server IP address : " + ip);
-            System.out.println("Port : 5222");
+            System.out.println("Port : 2000");
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
-        server = new ServerSocket(5222);
+        server = new ServerSocket(2000);
         while (true) {
             Socket socket = server.accept();
             System.out.println("Connected");
