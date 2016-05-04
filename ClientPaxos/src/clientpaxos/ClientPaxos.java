@@ -178,7 +178,7 @@ public class ClientPaxos {
                 System.out.println("kirim ke kpu : " + jsonOut);
                 voteInput = false;
 
-                //Kirim ke KPU
+                //Kirim ke KPUjoin
                 for (int i = 0; i < listPlayer.size(); i++) {
                     if (listPlayer.get(i).getPlayerId() == acc_kpu_id) {
                         UDPThread.sendReliableMessage(listPlayer.get(i).getAddress(), listPlayer.get(i).getPort(), jsonOut);
@@ -696,9 +696,17 @@ public class ClientPaxos {
                     int civilian_id = Integer.parseInt(json.get("player_id").toString());
                     boolean found = false;
                     for (int i = 0; i < listAlivePlayer.size(); i++) {
+<<<<<<< HEAD (d634c2b) - bug fix 3
                         if (listAlivePlayer.get(i).getPlayerId() == civilian_id) {
                             found = true;
                         }
+=======
+                        if (listAlivePlayer.get(i).getPlayerId() != player_id && !friend.get(0).equals(listAlivePlayer.get(i).getUsername())) {
+                            if (listAlivePlayer.get(i).getPlayerId() == civilian_id) {
+                                found = true;
+                            }
+                        } 
+>>>>>>> origin/master (ddec3a6) - perbaikan
                     }
                     if (found) {
                         totalVote++;
