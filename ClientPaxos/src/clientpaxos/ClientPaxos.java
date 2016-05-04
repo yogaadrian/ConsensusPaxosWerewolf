@@ -55,7 +55,7 @@ public class ClientPaxos {
     static public int isAlive;
 
     static public String paxos_role = "";
-    static public long timeout = 4000;
+    static public long timeout = 6000;
     static public String phase;
     static public boolean ismajority = false;
     static public boolean sendKPUID = false;
@@ -141,7 +141,7 @@ public class ClientPaxos {
                 json = jsonObject.toString();
                 System.out.println("Send to server : " + json);
                 sendToServer(json);
-            } else if (msg.equals("client address")) {
+            } else if (msg.equals("client_address")) {
                 getClientAddress();
             } else if (msg.equals("prepare")) {
                 UDPThread.propose();
@@ -835,7 +835,7 @@ public class ClientPaxos {
                             propose();
                         }
                     }
-                    if (kpuselected) {
+                    if (kpuselected &&!voteInput) {
                         if (day) {
                             if (isAlive == 1) {
                                 voteInput = true;
