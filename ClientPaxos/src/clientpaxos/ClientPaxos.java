@@ -178,7 +178,7 @@ public class ClientPaxos {
                 System.out.println("kirim ke kpu : " + jsonOut);
                 voteInput = false;
 
-                //Kirim ke KPU
+                //Kirim ke KPUjoin
                 for (int i = 0; i < listPlayer.size(); i++) {
                     if (listPlayer.get(i).getPlayerId() == acc_kpu_id) {
                         UDPThread.sendReliableMessage(listPlayer.get(i).getAddress(), listPlayer.get(i).getPort(), jsonOut);
@@ -192,7 +192,7 @@ public class ClientPaxos {
             System.out.println("nama player yg akan dibunuh : " + votedName);
             int player_id = -1;
             for (int i = 0; i < listAlivePlayer.size(); i++) {
-                if (listAlivePlayer.get(i).getUsername().equals(votedName) && listAlivePlayer.get(i).getRole().equals("civilian")) {
+                if (listAlivePlayer.get(i).getUsername().equals(votedName)) {
                     player_id = listAlivePlayer.get(i).getPlayerId();
                 }
             }
@@ -360,9 +360,6 @@ public class ClientPaxos {
                         if (role.equals("werewolf")) {
                             StringBuilder friendList = new StringBuilder("");
                             for (int i = 0; i < friend.size(); i++) {
-                                if (!friendList.equals("")) {
-                                    friendList.append(", ");
-                                }
                                 friendList.append(friend.get(i));
                             }
                             System.out.println("Teman sesama werewolf : " + friendList.toString());
@@ -429,7 +426,7 @@ public class ClientPaxos {
                             }
                             StringBuilder aliveCivilians = new StringBuilder("(");
                             for (int i = 0; i < listAlivePlayer.size(); i++) {
-                                if (listAlivePlayer.get(i).getRole().equals("civilian")) {
+                                if (listAlivePlayer.get(i).getPlayerId() != player_id && !friend.get(0).equals(listAlivePlayer.get(i).getUsername())) {
                                     if (!aliveCivilians.toString().equals("(")) {
                                         aliveCivilians.append(", ");
                                     }
@@ -686,7 +683,7 @@ public class ClientPaxos {
                     int civilian_id = Integer.parseInt(json.get("player_id").toString());
                     boolean found = false;
                     for (int i = 0; i < listAlivePlayer.size(); i++) {
-                        if (listAlivePlayer.get(i).getRole().equals("civilian")) {
+                        if (listAlivePlayer.get(i).getPlayerId() != player_id && !friend.get(0).equals(listAlivePlayer.get(i).getUsername())) {
                             if (listAlivePlayer.get(i).getPlayerId() == civilian_id) {
                                 found = true;
                             }
