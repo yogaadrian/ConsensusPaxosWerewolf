@@ -696,17 +696,9 @@ public class ClientPaxos {
                     int civilian_id = Integer.parseInt(json.get("player_id").toString());
                     boolean found = false;
                     for (int i = 0; i < listAlivePlayer.size(); i++) {
-<<<<<<< HEAD (d634c2b) - bug fix 3
                         if (listAlivePlayer.get(i).getPlayerId() == civilian_id) {
                             found = true;
                         }
-=======
-                        if (listAlivePlayer.get(i).getPlayerId() != player_id && !friend.get(0).equals(listAlivePlayer.get(i).getUsername())) {
-                            if (listAlivePlayer.get(i).getPlayerId() == civilian_id) {
-                                found = true;
-                            }
-                        } 
->>>>>>> origin/master (ddec3a6) - perbaikan
                     }
                     if (found) {
                         totalVote++;
