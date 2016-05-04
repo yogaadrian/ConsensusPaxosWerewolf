@@ -53,6 +53,9 @@ public class ServerPaxos {
     public static int acc_kpu_id = -1;
     public static boolean ismajority = false;
     public static int num_accepted_proposal = 0;
+    public static long timeout = 3000;
+    public static int voteFailed = 0;
+    public static boolean kpuselected = false;
 
     /**
      * @param args the command line arguments
@@ -128,7 +131,7 @@ public class ServerPaxos {
 
             //convert JSONObject to JSON to String
             response = jsonObject.toString();
-            System.out.println("kirim : " + response);
+            System.out.println("kirim ke client : " + response);
             SendToClient(response);
         }
 
@@ -142,7 +145,7 @@ public class ServerPaxos {
 
             //convert JSONObject to JSON to String
             response = jsonObject.toString();
-            System.out.println("kirim : " + response);
+            System.out.println("kirim ke client : " + response);
             SendToClient(response);
         }
 
@@ -168,7 +171,7 @@ public class ServerPaxos {
 
                         //convert JSONObject to JSON to String
                         response = jsonObject.toString();
-                        System.out.println("kirim : " + response);
+                        System.out.println("kirim ke client : " + response);
                         SendToClient(response);
                     } else if (!checkuser(username)) {
                         FailResponse("User Exists");
@@ -192,7 +195,7 @@ public class ServerPaxos {
 
                             //convert JSONObject to JSON to String
                             response = jsonObject.toString();
-                            System.out.println("kirim : " + response);
+                            System.out.println("kirim ke client : " + response);
                             SendToClient(response);
                         }
                     } else {//jika belum
@@ -208,7 +211,7 @@ public class ServerPaxos {
                         jsonObject.put("description", "waiting for other player to start");
                         //convert JSONObject to JSON to String
                         response = jsonObject.toString();
-                        System.out.println("kirim : " + response);
+                        System.out.println("kirim ke client : " + response);
                         SendToClient(response);
                         if (checkready()){
                             StartGame();
@@ -243,64 +246,125 @@ public class ServerPaxos {
 
                     //convert JSONObject to JSON to String
                     response = jsonObject.toString();
-                    System.out.println("kirim : " + response);
+                    System.out.println("kirim ke client : " + response);
                     SendToClient(response);
                 } else if (method.equals("accepted_proposal")) {
-                    int num_exec_local = 0;
-                    int kpu_id = Integer.parseInt(json.get("kpu_id").toString());
-                    for (int i = 0; i < listVoteKPU.size(); i++) {
-                        if (listVoteKPU.get(i).getPlayerId() == kpu_id) {
-                            int currentVote = listVoteKPU.get(i).getCountVote();
-                            listVoteKPU.get(i).setCountVote(currentVote + 1);
-                        }
-                    }
-                    if (t == null && num_accepted_proposal == 0) {
+                    if (!kpuselected) {
+                        int id_proposal = 0;
+                        int kpu_id = Integer.parseInt(json.get("kpu_id").toString());
                         num_accepted_proposal++;
+                        id_proposal = num_accepted_proposal;
                         System.out.println("num_accepted_proposal : " + num_accepted_proposal);
-                        num_exec_local = num_accepted_proposal;
-                        if (num_accepted_proposal == 1) {
+                        if (t == null && id_proposal == 1) {
+                            listVoteKPU.clear();
+                            for (int i = 0; i < listPlayer.size(); i++) {
+                                listVoteKPU.add(new Vote(listPlayer.get(i).getPlayerId(), 0));
+                            }    
                             t = new Thread(new MajorityChecker());
                             t.start();
                         }
-                    }
-                    if (checkid(kpu_id) != -1) {
-                        String response;
-                        //build jsonObject
-                        JSONObject jsonObject = new JSONObject();
-                        jsonObject.put("status", "ok");
-                        jsonObject.put("description", "");
-                        //convert JSONObject to JSON to String
-                        response = jsonObject.toString();
-                        System.out.println("kirim : " + response);
-                        SendToClient(response);
-                    } else {
-                        FailResponse("kpu_id not valid");
-                    }
-                    if (t != null && num_exec_local == 1) {
-                        System.out.println("KPU SELECTED");
-                        t.join();
-                        String response;
-                        //build jsonObject
-                        JSONObject jsonObject = new JSONObject();
-                        if (ismajority) {
-                            jsonObject.put("method", "kpu_selected");
-                            jsonObject.put("kpu_id", acc_kpu_id);
-                            //convert JSONObject to JSON to String
-                            response = jsonObject.toString();
-                            System.out.println("kirim : " + response);
-                            sendToAllClients(response, clientSockets);
-                        } else {
-                            jsonObject.put("status", "fail");
-                            jsonObject.put("description", "fail to achieve majority");
-                            //convert JSONObject to JSON to String
-                            response = jsonObject.toString();
-                            System.out.println("kirim : " + response);
-                            sendToAllClients(response, clientSockets);
+                        for (int i = 0; i < listVoteKPU.size(); i++) {
+                            if (listVoteKPU.get(i).getPlayerId() == kpu_id) {
+                                int currentVote = listVoteKPU.get(i).getCountVote();
+                                listVoteKPU.get(i).setCountVote(currentVote + 1);
+                            }
                         }
-                        num_accepted_proposal = 0;
-                        listVoteKPU.clear();
+                        if (checkid(kpu_id) != -1) {
+                            String response;
+                            //build jsonObject
+                            JSONObject jsonObject = new JSONObject();
+                            jsonObject.put("status", "ok");
+                            jsonObject.put("description", "");
+                            //convert JSONObject to JSON to String
+                            response = jsonObject.toString();
+                            if (!kpuselected) {
+                                System.out.println("kirim ke client : " + response);
+                                SendToClient(response);
+                            }
+                        } else {
+                            FailResponse("kpu_id not valid");
+                        }
+                        if (t != null && id_proposal == 1) {
+    //                        System.out.println("KPU SELECTED");
+                            t.join();
+                            String response;
+                            //build jsonObject
+                            JSONObject jsonObject = new JSONObject();
+                            if (ismajority) {
+                                jsonObject.put("method", "kpu_selected");
+                                jsonObject.put("kpu_id", acc_kpu_id);
+                                //convert JSONObject to JSON to String
+                                response = jsonObject.toString();
+                                System.out.println("kirim ke client : " + response);
+                                if (!kpuselected) {
+                                    sendToAllClients(response, clientSockets);
+                                    if (!kpuselected) {
+                                        voteNow();
+                                    }
+                                    kpuselected = true;
+                                }
+                            } else {
+                                jsonObject.put("status", "fail");
+                                jsonObject.put("description", "fail to achieve majority to choose kpu");
+                                //convert JSONObject to JSON to String
+                                response = jsonObject.toString();
+                                System.out.println("kirim ke client : " + response);
+                                sendToAllClients(response, clientSockets);
+                            }
+                            num_accepted_proposal = 0;
+                            t = null;
+                        }
+                    }
+                } else if (method.equals("vote_result_werewolf")) {
+                    int vote_status = Integer.parseInt(json.get("vote_status").toString());
+                    if (vote_status == 1) {
+                        int player_killed = Integer.parseInt(json.get("player_killed").toString());
                         for (int i = 0; i < listPlayer.size(); i++) {
-                            listVoteKPU.add(new Vote(listPlayer.get(i).getPlayerId(), 0));
+                            if (listPlayer.get(i).getPlayerId() == player_killed) {
+                                listPlayer.get(i).setIsAlive(0);
+                            }
+                        }
+                        ncivilian--;
+                        System.out.println("ada yg terbunuh");
+                        //broadcastClientAddress();
+                        if (!CheckGameOver()) {
+                            ChangePhase();
+                        }
+                    } else if (vote_status == -1) {
+                        System.out.println("tdk ada yg terbunuh");
+                        //broadcastClientAddress();
+                        voteNow();
+                    }
+                } else if (method.equals("vote_result_civilian")) {
+                    int vote_status = Integer.parseInt(json.get("vote_status").toString());
+                    if (vote_status == 1) {
+                        int player_killed = Integer.parseInt(json.get("player_killed").toString());
+                        for (int i = 0; i < listPlayer.size(); i++) {
+                            if (listPlayer.get(i).getPlayerId() == player_killed) {
+                                listPlayer.get(i).setIsAlive(0);
+                                if (listPlayer.get(i).getRole().equals("werewolf")) {
+                                    nwerewolf--;
+                                } else if (listPlayer.get(i).getRole().equals("civilian")) {
+                                    ncivilian--;
+                                } 
+                            }
+                        }
+                        System.out.println("ada yg terbunuh");
+                        broadcastClientAddress();
+                        if (!CheckGameOver()) {
+                            ChangePhase();
+                            voteNow();
+                        }
+                    } else if (vote_status == -1) {
+                        voteFailed++;
+                        System.out.println("tdk ada yg terbunuh");
+                        if (voteFailed >= 2) {
+                            broadcastClientAddress();
+                            ChangePhase();
+                            voteNow();
+                        } else {
+                            broadcastClientAddress();
+                            voteNow();
                         }
                     }
                 } else {// command tidak terdefinisi
@@ -349,12 +413,15 @@ public class ServerPaxos {
                 randomed[i] = false;
             }
             for (int i = 0; i < listPlayer.size(); i++) {
-                int nrand = rand.nextInt(listPlayer.size());
+                int nrand = rand.nextInt(1000);
+                nrand %= listPlayer.size();
                 while (randomed[nrand]) {
-                    nrand--;
-                    if (nrand < 0) {
-                        nrand = listPlayer.size() - 1;
-                    }
+//                    nrand--;
+//                    if (nrand < 0) {
+//                        nrand = listPlayer.size() - 1;
+//                    }
+                    nrand = rand.nextInt(1000);
+                    nrand %= listPlayer.size();
                 }
                 if (i < listPlayer.size() / 3) {
                     listPlayer.get(nrand).setRole("werewolf");
@@ -395,55 +462,66 @@ public class ServerPaxos {
                 }
                 jsonObject.put("description", "game is started");
                 json = jsonObject.toString();
-                System.out.println(json);
+                System.out.println("kirim ke client : " + json);
                 //create output stream attached to socket
                 PrintWriter outToClient = new PrintWriter(new OutputStreamWriter(clientSockets.get(i).getOutputStream()));
                 //send msg to client
                 outToClient.print(json + '\n');
                 outToClient.flush();
-                listVoteKPU.add(new Vote(listPlayer.get(i).getPlayerId(), 0));
             }
         }
 
         //PROSEDUR UNTUK MENGGANTI TIME
         //GTAU KAPAN DIPANGGIL
-        public void ChangePhase(String daystring, int numberday) throws Exception {
+        public void ChangePhase() throws Exception {
             String json;
             JSONObject jsonObject = new JSONObject();
             jsonObject.put("method", "change_phase");
             play = true;
-            jsonObject.put("time", daystring);
-            if (daystring.equals("day")) {
+            if (!day) {
+                kpuselected = false;
+                days++;
                 day = true;
             } else {
                 day = false;
             }
-            jsonObject.put("days", numberday);
+            jsonObject.put("time", day);
+            jsonObject.put("days", days);
             jsonObject.put("description", "Time has changed");
             json = jsonObject.toString();
-            System.out.println(json);
+            System.out.println("kirim ke client : " + json);
             sendToAllClients(json, clientSockets);
-       
         }
 
-        public void CheckGameOver() throws Exception {
-            String json;
-            JSONObject jsonObject = new JSONObject();
-            jsonObject.put("method", "game_over");
-            play = false;
+        public boolean CheckGameOver() throws Exception {
+            boolean isgameover = false;
             if (nwerewolf == 0) {
+                isgameover = true;
+                String json;
+                JSONObject jsonObject = new JSONObject();
+                jsonObject.put("method", "game_over");
+                play = false;
                 jsonObject.put("winner", "civilian");
+                jsonObject.put("description", "game over");
+                json = jsonObject.toString();
+                System.out.println("kirim ke client : " + json);
+                sendToAllClients(json, clientSockets);
+                return isgameover;
             } else if (nwerewolf == ncivilian) {
+                isgameover = true;
+                String json;
+                JSONObject jsonObject = new JSONObject();
+                jsonObject.put("method", "game_over");
+                play = false;
                 jsonObject.put("winner", "werewolf");
+                jsonObject.put("description", "game over");
+                json = jsonObject.toString();
+                System.out.println("kirim ke client : " + json);
+                sendToAllClients(json, clientSockets);
+                return isgameover;
             } else {
-                return;
+                return isgameover;
             }
-            jsonObject.put("description", "game over");
-            json = jsonObject.toString();
-            System.out.println(json);
-            sendToAllClients(json, clientSockets);
-       
-
         }
 
         public void run() {
@@ -452,7 +530,7 @@ public class ServerPaxos {
                 BufferedReader inFromClient = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 String request;
                 while ((request = inFromClient.readLine()) != null) {
-                    System.out.println(request);
+                    System.out.println("receive from client : " + request);
                     Parse(request);
                 }
             } catch (SocketException ex) {
@@ -477,7 +555,7 @@ public class ServerPaxos {
             public void run() {
                 long duration = System.currentTimeMillis() - sendTimeMillis;
                 int majority = (playerSize - 2) / 2;
-                while (num_accepted_proposal <= majority && duration < 3000) {
+                while (num_accepted_proposal <= majority && duration < timeout) {
                     duration = System.currentTimeMillis() - sendTimeMillis;
                 }
                 ismajority = false;
@@ -516,6 +594,59 @@ public class ServerPaxos {
             outToClient.print(response + '\n');
             outToClient.flush();
         }
+    }
+    
+    public static void voteNow() throws IOException {
+        String json;
+
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("method", "vote_now");
+
+        //Scanner scan = new Scanner(System.in);
+        //System.out.print("masukan phase: ");
+        //String phase = scan.nextLine();
+        if (day) {
+            jsonObject.put("phase", "day");
+        } else {
+            jsonObject.put("phase", "night");
+        }
+        
+        //Send To Client
+        String response;
+        response = jsonObject.toString();
+        System.out.println("kirim ke client : " + response);
+        sendToAllClients(response, clientSockets);
+    }
+    
+    public static void broadcastClientAddress() throws IOException {
+        String response;
+        //build jsonObject
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("status", "ok");
+
+        //tempjason untuk array
+        JSONArray ja = new JSONArray();
+        for (int i = 0; i < listPlayer.size(); i++) {
+            JSONObject tempobject = new JSONObject();
+            tempobject.put("player_id", listPlayer.get(i).getPlayerId());
+            tempobject.put("is_alive", listPlayer.get(i).getIsAlive());
+            tempobject.put("address", listPlayer.get(i).getAddress());
+            tempobject.put("port", listPlayer.get(i).getPort());
+            tempobject.put("username", listPlayer.get(i).getUsername());
+            if (listPlayer.get(i).getIsAlive() == 0) {
+
+                tempobject.put("role", listPlayer.get(i).getRole());
+            }
+            ja.add(tempobject);
+        }
+
+        jsonObject.put("clients", ja);
+        jsonObject.put("description", "list of clients retrieved");
+
+        //convert JSONObject to JSON to String
+        response = jsonObject.toString();
+        System.out.println("kirim ke client : " + response);
+        sendToAllClients(response, clientSockets);
     }
 
     public static class StringGetter extends Thread {
