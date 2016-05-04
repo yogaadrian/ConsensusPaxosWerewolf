@@ -72,7 +72,7 @@ public class ServerPaxos {
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
-        server = new ServerSocket(2000);
+        server = new ServerSocket(5000);
         while (true) {
             Socket socket = server.accept();
             System.out.println("Connected");

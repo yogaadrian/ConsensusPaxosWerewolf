@@ -15,6 +15,7 @@ import static java.lang.Thread.sleep;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.ArrayList;
@@ -45,6 +46,8 @@ public class ClientPaxos {
     static public ArrayList<Player> listDeadPlayer = new ArrayList();
     static public ArrayList<Vote> listVote = new ArrayList();
     static public int port;
+    static public String host;
+    
     static public int sequence = 0;
 
     static public boolean play = false;
@@ -119,6 +122,7 @@ public class ClientPaxos {
                 jsonObject.put("method", "join");
                 jsonObject.put("username", username);
                 jsonObject.put("udp_address", InetAddress.getLocalHost().getHostAddress());
+                host=InetAddress.getLocalHost().getHostAddress();
                 System.out.print("Masukkan port : ");
                 port = scan.nextInt();
                 scan.nextLine();
@@ -485,7 +489,7 @@ public class ClientPaxos {
         static int nwerewolf = 0;
 
         UDPThread() throws SocketException, Exception {
-            clientSocket = new DatagramSocket(port);
+            clientSocket = new DatagramSocket(new InetSocketAddress(host,port));
             unreliableSender = new UnreliableSender(clientSocket);
             phase = "prepare";
         }
