@@ -68,7 +68,7 @@ public class ServerPaxos {
         try {
             ip = InetAddress.getLocalHost().getHostAddress();
             System.out.println("Server IP address : " + ip);
-            System.out.println("Port : 2000");
+            System.out.println("Port : 5000");
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
@@ -315,7 +315,7 @@ public class ServerPaxos {
                             t = null;
                         }
                     }
-                } else if (method.equals("vote_result_werewolf")) {
+                } else if (method.equals("vote_result_werewolf") || (method.equals("vote_result") && !day)) {
                     int vote_status = Integer.parseInt(json.get("vote_status").toString());
                     if (vote_status == 1) {
                         int player_killed = Integer.parseInt(json.get("player_killed").toString());
@@ -335,7 +335,7 @@ public class ServerPaxos {
                         //broadcastClientAddress();
                         voteNow();
                     }
-                } else if (method.equals("vote_result_civilian")) {
+                } else if (method.equals("vote_result_civilian") || (method.equals("vote_result") && day)) {
                     int vote_status = Integer.parseInt(json.get("vote_status").toString());
                     if (vote_status == 1) {
                         int player_killed = Integer.parseInt(json.get("player_killed").toString());
@@ -485,7 +485,13 @@ public class ServerPaxos {
             } else {
                 day = false;
             }
-            jsonObject.put("time", day);
+            String time = "";
+            if (day) {
+                time = "day";
+            } else {
+                time = "night";
+            }
+            jsonObject.put("time", time);
             jsonObject.put("days", days);
             jsonObject.put("description", "Time has changed");
             json = jsonObject.toString();
@@ -560,7 +566,7 @@ public class ServerPaxos {
                 }
                 ismajority = false;
                 for (int i = 0; i < listVoteKPU.size(); i++) {
-//                    System.out.println("(" + listVoteKPU.get(i).getPlayerId() + ", " + listVoteKPU.get(i).getCountVote() + ")");
+                    System.out.println("(" + listVoteKPU.get(i).getPlayerId() + ", " + listVoteKPU.get(i).getCountVote() + ")");
                     if (listVoteKPU.get(i).getCountVote() > majority) {
                         acc_kpu_id = listVoteKPU.get(i).getPlayerId();
                         ismajority = true;
