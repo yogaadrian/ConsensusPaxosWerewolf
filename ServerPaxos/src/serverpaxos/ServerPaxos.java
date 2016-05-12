@@ -566,7 +566,7 @@ public class ServerPaxos {
                 }
                 ismajority = false;
                 for (int i = 0; i < listVoteKPU.size(); i++) {
-                    System.out.println("(" + listVoteKPU.get(i).getPlayerId() + ", " + listVoteKPU.get(i).getCountVote() + ")");
+//                    System.out.println("(" + listVoteKPU.get(i).getPlayerId() + ", " + listVoteKPU.get(i).getCountVote() + ")");
                     if (listVoteKPU.get(i).getCountVote() > majority) {
                         acc_kpu_id = listVoteKPU.get(i).getPlayerId();
                         ismajority = true;
