@@ -1010,7 +1010,7 @@ public class ClientPaxos {
             boolean found = false;
             int player_killed = -1;
             for (int i = 0; i < listVote.size(); i++) {
-                System.out.println("(" + listVote.get(i).getPlayerId() + ", " + listVote.get(i).getCountVote() + ")");
+//                System.out.println("(" + listVote.get(i).getPlayerId() + ", " + listVote.get(i).getCountVote() + ")");
                 if (listVote.get(i).getCountVote() > max) {
                     max = listVote.get(i).getCountVote();
                     player_killed = listVote.get(i).getPlayerId();
