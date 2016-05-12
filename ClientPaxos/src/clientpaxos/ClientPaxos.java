@@ -35,7 +35,7 @@ import vote.Vote;
  */
 public class ClientPaxos {
 
-    static public Socket clientSocket;
+    static public Socket tcpSocket;
     static public BufferedReader objectFromServer;
     static public PrintWriter objectToServer;
     static public Scanner scan = new Scanner(System.in);
@@ -55,10 +55,11 @@ public class ClientPaxos {
     static public long days;
     static public String role;
     static public ArrayList<String> friend = new ArrayList();
-    static public int isAlive;
+    static public int isAlive = 1;
 
     static public String paxos_role = "";
-    static public long timeout = 6000;
+    static public long timeout = 8000;
+    static public long votedelay = 6000;
     static public String phase;
     static public boolean ismajority = false;
     static public boolean sendKPUID = false;
@@ -98,16 +99,20 @@ public class ClientPaxos {
         //System.out.print("Input server Port : ");
         //port = scan.nextInt();
         //scan.nextLine();
-        clientSocket = new Socket(host, port);
+        tcpSocket = new Socket(host, port);
         System.out.println("Connected");
         Thread t = new Thread(new StringGetter());
         t.start();
         while (true) {
             sleep(100);
-            System.out.print("COMMAND : ");
+            if (!voteInput) {
+                System.out.print("COMMAND : ");
+            }
             //send msg to server
             String msg = scanner.next();
-            ParseCommand(msg);
+            //if ((day && isAlive == 1) || (!day && role.equals("werewolf") && isAlive == 1)) {
+                ParseCommand(msg);
+            //}
         }
     }
 
@@ -167,17 +172,17 @@ public class ClientPaxos {
             // Kondisi siang
             String jsonVote;
             JSONObject jsonObject = new JSONObject();
-            int player_id = -1;
-            for (int i = 0; i < listPlayer.size(); i++) {
-                if (listPlayer.get(i).getUsername().equals(votedName)) {
-                    player_id = listPlayer.get(i).getPlayerId();
+            int killed_id = -1;
+            for (int i = 0; i < listAlivePlayer.size(); i++) {
+                if (listAlivePlayer.get(i).getUsername().equals(votedName) && listAlivePlayer.get(i).getPlayerId() != player_id ) {
+                    killed_id = listAlivePlayer.get(i).getPlayerId();
                 }
             }
-            if (player_id != -1) {
-                System.out.println("player_id : " + player_id);
+            if (killed_id != -1) {
+//                System.out.println("player_id : " + player_id);
                 //method yang akan dikirimkan
                 jsonObject.put("method", "vote_civilian");
-                jsonObject.put("player_id", player_id);
+                jsonObject.put("player_id", killed_id);
                 String jsonOut = jsonObject.toString();
                 System.out.println("kirim ke kpu : " + jsonOut);
                 voteInput = false;
@@ -188,22 +193,35 @@ public class ClientPaxos {
                         UDPThread.sendReliableMessage(listPlayer.get(i).getAddress(), listPlayer.get(i).getPort(), jsonOut);
                     }
                 }
+            } else {
+                System.out.println("Error! Player yang divote tidak valid");
+                StringBuilder alivePlayers = new StringBuilder("(");
+                for (int i = 0; i < listAlivePlayer.size(); i++) {
+                    if (listAlivePlayer.get(i).getPlayerId() != player_id) {
+                        if (!alivePlayers.toString().equals("(")) {
+                            alivePlayers.append(", ");
+                        }
+                        alivePlayers.append(listAlivePlayer.get(i).getUsername());
+                    } 
+                }
+                alivePlayers.append(")");
+                System.out.print("vote player yang akan dibunuh " + alivePlayers.toString() + ": ");
             }
         } else if (votePhase.equals("night")) {
             // Kondisi malam
             String jsonVote;
             JSONObject jsonObject = new JSONObject();
             System.out.println("nama player yg akan dibunuh : " + votedName);
-            int player_id = -1;
+            int killed_id = -1;
             for (int i = 0; i < listAlivePlayer.size(); i++) {
                 if (listAlivePlayer.get(i).getUsername().equals(votedName) && listAlivePlayer.get(i).getPlayerId() != player_id && !friend.get(0).equals(listAlivePlayer.get(i).getUsername())) {
-                    player_id = listAlivePlayer.get(i).getPlayerId();
+                    killed_id = listAlivePlayer.get(i).getPlayerId();
                 }
             }
-            if (player_id != -1) {
+            if (killed_id != -1) {
                 //method yang akan dikirimkan
                 jsonObject.put("method", "vote_werewolf");
-                jsonObject.put("player_id", player_id);
+                jsonObject.put("player_id", killed_id);
                 String jsonOut = jsonObject.toString();
                 System.out.println("kirim ke kpu : " + jsonOut);
                 voteInput = false;
@@ -245,7 +263,7 @@ public class ClientPaxos {
 
         public void run() {
             try {
-                BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                BufferedReader inFromServer = new BufferedReader(new InputStreamReader(tcpSocket.getInputStream()));
                 String response;
                 while (true) {
                     response = inFromServer.readLine();
@@ -300,6 +318,9 @@ public class ClientPaxos {
                         listAlivePlayer.clear();
                         System.out.println("clients");
                         JSONArray jsonarray = (JSONArray) json.get("clients");
+                        int killedid = -1;
+                        String killedname = "";
+                        String killedrole = "";
                         for (int i = 0; i < jsonarray.size(); i++) {
                             JSONObject temp = (JSONObject) jsonarray.get(i);
                             System.out.println(temp.toJSONString());
@@ -313,7 +334,9 @@ public class ClientPaxos {
                                     }
                                 }
                                 if (!found) {
-                                    System.out.println("Player yang terbunuh adalah " + listPlayer.get(i).getUsername() + " (" + listPlayer.get(i).getRole() + ")");
+                                    killedname = listPlayer.get(i).getUsername();
+                                    killedrole = listPlayer.get(i).getRole();
+                                    killedid = listPlayer.get(i).getPlayerId();
                                     listDeadPlayer.add(listPlayer.get(i));
                                 }
                             } else {
@@ -321,6 +344,17 @@ public class ClientPaxos {
                             }
                             if (listPlayer.get(i).getPlayerId() == player_id) {
                                 isAlive = listPlayer.get(i).getIsAlive();
+                            }
+                        }
+                        if (!killedname.equals("") && !killedrole.equals("") && killedid != -1) {
+                            if (player_id == killedid) {
+                                System.out.println("Player yang terbunuh adalah " + "Anda" +  " (" + killedname + ", " + killedrole + ")");
+                            } else {
+                                System.out.println("Player yang terbunuh adalah " + killedname + " (" + killedrole + ")");
+                            }
+                        } else {
+                            if (kpuselected) {
+                                System.out.println("Tidak ada yang terbunuh");
                             }
                         }
                         if ((player_id != listPlayer.size() - 1) && (player_id != listPlayer.size() - 2)) {
@@ -355,6 +389,11 @@ public class ClientPaxos {
                             String tmp = (String) jsonarraytemp.get(i);
                             friend.add(tmp);
                         }
+                        StringBuilder friendList = new StringBuilder("");
+                        for (int i = 0; i < friend.size(); i++) {
+                            friendList.append(friend.get(i));
+                        }
+                        System.out.println("Teman sesama werewolf : " + friendList.toString());
                     }
                     String response;
                     //build jsonObject
@@ -365,12 +404,19 @@ public class ClientPaxos {
                     response = jsonObject.toString();
                     System.out.println("kirim ke server : " + response);
                     sendToServer(response);
+                    String waktu = "";
+                    if (day) {
+                        waktu = "day";
+                    } else {
+                        waktu = "night";
+                    }
+                    System.out.println("Hari : " + days + ", Waktu : " + waktu + ", Peran : " + role);
                     getClientAddress();
                 } else if (method.equals("change_phase")) {
                     if (json.get("time").toString().equals("day")) {
                         if (!day) {
                             kpuselected = false;
-                            getClientAddress();
+//                            getClientAddress();
                         }
                         day = true;
                     } else {
@@ -384,7 +430,7 @@ public class ClientPaxos {
                         day = false;
                     }
                     days = (long) json.get("days");
-                    System.out.println("description : " + json.get("description").toString());
+//                    System.out.println("description : " + json.get("description").toString());
                     String response;
                     //build jsonObject
                     JSONObject jsonObject = new JSONObject();
@@ -394,7 +440,16 @@ public class ClientPaxos {
                     response = jsonObject.toString();
                     System.out.println("kirim ke server : " + response);
                     sendToServer(response);
-                    getClientAddress();
+                    String waktu = "";
+                    if (day) {
+                        waktu = "day";
+                    } else {
+                        waktu = "night";
+                    }
+                    System.out.println("Hari : " + days + ", Waktu : " + waktu + ", Peran : " + role);
+                    if (day) {
+                        getClientAddress();
+                    }
                 } else if (method.equals("game_over")) {
                     play = false;
                     if (json.get("winner").toString().equals(role)) {
@@ -412,12 +467,13 @@ public class ClientPaxos {
                     System.out.println("kirim ke server : " + response);
                     sendToServer(response);
                 } else if (method.equals("vote_now")) {
+                    votePhase = (String) json.get("phase");
                     if (day) {
                         if (isAlive == 1) {
                             voteInput = true;
                             long currentTime = System.currentTimeMillis();
                             long dur = System.currentTimeMillis() - currentTime;
-                            while (dur < timeout * 2) {
+                            while (dur < votedelay * 2) {
                                 dur = System.currentTimeMillis() - currentTime;
                             }
                             StringBuilder alivePlayers = new StringBuilder("(");
@@ -431,16 +487,10 @@ public class ClientPaxos {
                             }
                             alivePlayers.append(")");
                             System.out.print("vote player yang akan dibunuh " + alivePlayers.toString() + ": ");
-                            votePhase = (String) json.get("phase");
                         }
                     } else {
-                        if (role.equals("werewolf")) {
+                        if (role.equals("werewolf") && isAlive == 1) {
                             voteInput = true;
-                            long currentTime = System.currentTimeMillis();
-                            long dur = System.currentTimeMillis() - currentTime;
-                            while (dur < timeout * 2) {
-                                dur = System.currentTimeMillis() - currentTime;
-                            }
                             StringBuilder aliveCivilians = new StringBuilder("(");
                             for (int i = 0; i < listAlivePlayer.size(); i++) {
                                 if (listAlivePlayer.get(i).getPlayerId() != player_id && !friend.get(0).equals(listAlivePlayer.get(i).getUsername())) {
@@ -452,7 +502,6 @@ public class ClientPaxos {
                             }
                             aliveCivilians.append(")");
                             System.out.print("vote player yang akan dibunuh " + aliveCivilians.toString() + ": ");
-                            votePhase = (String) json.get("phase");
                         }
                     }
                 } else if (method.equals("kpu_selected")) {
@@ -469,7 +518,7 @@ public class ClientPaxos {
 
     public static void sendToServer(String msg) throws Exception {
         //create output stream attached to socket
-        PrintWriter outToServer = new PrintWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
+        PrintWriter outToServer = new PrintWriter(new OutputStreamWriter(tcpSocket.getOutputStream()));
         //send msg to server
         outToServer.print(msg + '\n');
         outToServer.flush();
@@ -996,9 +1045,9 @@ public class ClientPaxos {
                 }
             } else {
                 if (votePhase.equals("day")) {
-                    jsonObject.put("method", "vote_result_werewolf");
+                    jsonObject.put("method", "vote_result");
                 } else if (votePhase.equals("night")) {
-                    jsonObject.put("method", "vote_result_civilian");
+                    jsonObject.put("method", "vote_result");
                 }
                 jsonObject.put("vote_status", -1);
                 jsonObject.put("vote_result", ja);
